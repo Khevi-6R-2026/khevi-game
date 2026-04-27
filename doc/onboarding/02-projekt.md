@@ -15,7 +15,7 @@ parent: Onboarding
 Im VS Code Terminal:
 ```terminal
 cd C:\github
-git clone https://github.com/guenter-khev/khevi-game.git
+git clone https://github.com/Khevi-6R-2026/khevi-game.git
 cd khevi-game
 ```
 
