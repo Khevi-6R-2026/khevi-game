@@ -80,6 +80,17 @@ main table { border-collapse: collapse; width: 100%; }
 main th, main td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; }
 main th { background: #f6f8fa; }
 
+/* Callout (Hinweis-Box) */
+.callout {
+  border-left: 4px solid var(--khev-orange);
+  background: #fff7ed;
+  padding: 0.8rem 1rem;
+  margin: 1rem 0 1.5rem;
+  border-radius: 0 4px 4px 0;
+}
+.callout strong { color: var(--khev-orange); }
+.callout a { font-weight: 600; }
+
 /* Hero (Startseite) */
 .hero {
   background: linear-gradient(135deg, var(--khev-blue), #2a6bb8);

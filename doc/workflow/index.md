@@ -10,6 +10,8 @@ nav_order: 2
 
 Hier lernst du, **wie wir gemeinsam am Projekt arbeiten**: Branches, Commits, Pull Requests und der tägliche Ablauf.
 
+> 💡 **Voraussetzung:** Dein Team hat sich bereits in der [Projektplanung](../planung/index.md) eingetragen.
+
 > 🚧 **Diese Sektion wird noch ausgebaut.** Templates für künftige Inhalte sind unten aufgelistet.
 
 ---
