@@ -1,0 +1,246 @@
+---
+layout: default
+title: Spiel 2
+author: 6R 2026
+---
+
+<div class="game-container">
+  <section class="game-header">
+    <h1>{{ page.title }}</h1>
+    <p class="game-description">Spiel-Beschreibung hier eingeben</p>
+  </section>
+
+  <section class="game-board">
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+  </section>
+
+  <section class="game-controls">
+    <button id="startBtn" class="btn btn-primary">Spiel starten</button>
+    <button id="resetBtn" class="btn btn-secondary">Zurücksetzen</button>
+    <button id="pauseBtn" class="btn btn-secondary">Pausieren</button>
+  </section>
+
+  <section class="game-stats">
+    <div class="stat">
+      <span class="stat-label">Punktzahl:</span>
+      <span id="score" class="stat-value">0</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Level:</span>
+      <span id="level" class="stat-value">1</span>
+    </div>
+  </section>
+
+  <section class="game-instructions">
+    <h2>Anleitung</h2>
+    <ul>
+      <li>Regel 1</li>
+      <li>Regel 2</li>
+      <li>Regel 3</li>
+    </ul>
+  </section>
+</div>
+
+<style>
+  .game-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+
+  .game-header {
+    text-align: center;
+    margin-bottom: 30px;
+  }
+
+  .game-header h1 {
+    color: #333;
+    font-size: 2.5em;
+    margin: 10px 0;
+  }
+
+  .game-description {
+    color: #666;
+    font-size: 1.1em;
+  }
+
+  .game-board {
+    display: flex;
+    justify-content: center;
+    margin: 30px 0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  #gameCanvas {
+    background-color: #f5f5f5;
+    border: 2px solid #ddd;
+    display: block;
+  }
+
+  .game-controls {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+
+  .btn-primary {
+    background-color: #007bff;
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background-color: #0056b3;
+  }
+
+  .btn-secondary {
+    background-color: #6c757d;
+    color: white;
+  }
+
+  .btn-secondary:hover {
+    background-color: #545b62;
+  }
+
+  .game-stats {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin: 20px 0;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border-radius: 5px;
+  }
+
+  .stat {
+    font-size: 1.2em;
+  }
+
+  .stat-label {
+    font-weight: bold;
+    margin-right: 10px;
+  }
+
+  .stat-value {
+    color: #007bff;
+    font-weight: bold;
+  }
+
+  .game-instructions {
+    margin-top: 40px;
+    padding: 20px;
+    background-color: #f0f8ff;
+    border-left: 4px solid #007bff;
+    border-radius: 5px;
+  }
+
+  .game-instructions h2 {
+    margin-top: 0;
+    color: #333;
+  }
+
+  .game-instructions ul {
+    margin: 10px 0;
+    padding-left: 20px;
+  }
+
+  .game-instructions li {
+    margin: 8px 0;
+    color: #555;
+  }
+</style>
+
+<script>
+  // Basis-Struktur für das Spiel
+  class Game {
+    constructor() {
+      this.canvas = document.getElementById('gameCanvas');
+      this.ctx = this.canvas.getContext('2d');
+      this.score = 0;
+      this.level = 1;
+      this.isRunning = false;
+      this.isPaused = false;
+      this.init();
+    }
+
+    init() {
+      this.attachEventListeners();
+      this.draw();
+    }
+
+    attachEventListeners() {
+      document.getElementById('startBtn').addEventListener('click', () => this.start());
+      document.getElementById('resetBtn').addEventListener('click', () => this.reset());
+      document.getElementById('pauseBtn').addEventListener('click', () => this.togglePause());
+    }
+
+    start() {
+      this.isRunning = true;
+      this.gameLoop();
+    }
+
+    reset() {
+      this.score = 0;
+      this.level = 1;
+      this.isRunning = false;
+      this.isPaused = false;
+      this.updateUI();
+      this.draw();
+    }
+
+    togglePause() {
+      this.isPaused = !this.isPaused;
+    }
+
+    gameLoop() {
+      if (!this.isRunning) return;
+      if (!this.isPaused) {
+        this.update();
+      }
+      this.draw();
+      requestAnimationFrame(() => this.gameLoop());
+    }
+
+    update() {
+      // Spiel-Logik hier implementieren
+    }
+
+    draw() {
+      // Canvas zeichnen
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      this.ctx.fillStyle = '#f5f5f5';
+      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      
+      if (this.isPaused) {
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.fillStyle = 'white';
+        this.ctx.font = 'bold 40px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('PAUSIERT', this.canvas.width / 2, this.canvas.height / 2);
+      }
+    }
+
+    updateUI() {
+      document.getElementById('score').textContent = this.score;
+      document.getElementById('level').textContent = this.level;
+    }
+  }
+
+  // Spiel beim Laden der Seite initialisieren
+  document.addEventListener('DOMContentLoaded', () => {
+    const game = new Game();
+  });
+</script>
