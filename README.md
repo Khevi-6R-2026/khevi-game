@@ -1,2 +1,2 @@
-!!!WICHTIG!!!
+WICHTIG
 file darf nicht index.html heißen
