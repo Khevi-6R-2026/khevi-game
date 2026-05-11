@@ -44,9 +44,9 @@ Im Sheet findet ihr eine Liste der Fächer. Tragt euer Team **(Vorname Nachname 
 
 ## 🚀 Wenn ihr eingetragen seid
 
-1. **Team-Name festlegen** (z.B. `mathe-snake`)
+1. **Team-Name und Nummer festlegen** (z.B. bu-anatomie = 2)
 2. **Onboarding** durchgehen → [01-Installation](../onboarding/01-installation.md)
-3. Eigenen Spiele-Ordner anlegen unter `games/<team-name>/`
+3. Eigenen Spiele-Ordner anlegen und Beschreibung einfügen `game2/readme.md`
 4. Mit dem [Workflow](../workflow/index.md) starten
 
 ---
