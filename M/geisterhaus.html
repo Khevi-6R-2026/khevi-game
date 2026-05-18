@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geisterhaus der Vielfachen</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            background: linear-gradient(180deg, #87ceeb 0%, #e0f6ff 100%);
+            border: 4px solid #333;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        #player {
+            position: absolute;
+            width: 25px;
+            height: 45px;
+            left: 385px;
+            bottom: 50px;
+        }
+
+        #playerCanvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .platform {
+            position: absolute;
+            width: 70px;
+            height: 12px;
+            background: #888;
+            border: 2px solid #555;
+            border-radius: 2px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            color: white;
+            font-size: 12px;
+            cursor: default;
+            font-family: monospace;
+        }
+
+        .platform.valid {
+            background: #8170e2;
+            border-color: #3f23de;
+        }
+
+        .platform.invalid {
+            background: #8170e2;
+            border-color: #3f23de;
+        }
+
+        .platform.disappearing {
+            animation: fadeOut 0.8s ease-out forwards;
+        }
+
+        @keyframes fadeOut {
+            0% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+        }
+
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #333;
+            font-weight: bold;
+            font-size: 16px;
+            z-index: 100;
+        }
+
+        #multiplier {
+            background: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        #score {
+            background: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        #volumeControl {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        #volumeSlider {
+            width: 120px;
+            cursor: pointer;
+        }
+
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 40px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 200;
+            display: none;
+            font-size: 24px;
+        }
+
+        #gameOver h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            color: #ff6b6b;
+        }
+
+        #gameOver button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background 0.3s;
+        }
+
+        #gameOver button:hover {
+            background: #45a049;
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 12px;
+            text-align: right;
+            color: #333;
+        }
+
+        #leaderboardContainer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 350px;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.95);
+            color: white;
+            padding: 20px;
+            border-left: 3px solid #4CAF50;
+            overflow-y: auto;
+            z-index: 150;
+        }
+
+        #leaderboardContainer h2 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #4CAF50;
+            text-align: center;
+        }
+
+        .leaderboard-entry {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            border-left: 3px solid #666;
+        }
+
+        .leaderboard-entry.rank-1 {
+            background: rgba(255, 215, 0, 0.2);
+            border-left-color: #ffd700;
+        }
+
+        .leaderboard-entry.rank-2 {
+            background: rgba(192, 192, 192, 0.2);
+            border-left-color: #c0c0c0;
+        }
+
+        .leaderboard-entry.rank-3 {
+            background: rgba(205, 127, 50, 0.2);
+            border-left-color: #cd7f32;
+        }
+
+        .rank-badge {
+            font-size: 24px;
+            margin-right: 10px;
+            min-width: 30px;
+        }
+
+        .leaderboard-info {
+            flex-grow: 1;
+        }
+
+        .leaderboard-name {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .leaderboard-score {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        #loginForm {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #666;
+        }
+
+        #loginForm input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid #666;
+            color: white;
+            border-radius: 3px;
+        }
+
+        #loginForm input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        #loginForm button {
+            width: 100%;
+            padding: 8px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        #loginForm button:hover {
+            background: #45a049;
+        }
+
+        .current-player {
+            text-align: center;
+            padding: 10px;
+            background: rgba(76, 175, 80, 0.2);
+            border-radius: 5px;
+            margin-bottom: 15px;
+            border: 1px solid #4CAF50;
+        }
+
+        .current-player-name {
+            color: #4CAF50;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .logout-btn {
+            width: 100%;
+            padding: 8px;
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .logout-btn:hover {
+            background: #ff5252;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="startScreen" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 300; color: white;">
+            <h1 style="font-size: 48px; margin-bottom: 30px; color: #4CAF50;">Geisterhaus der Vielfachen</h1>
+            <div style="max-width: 500px; font-size: 16px; line-height: 1.8; margin-bottom: 40px;">
+                <h2 style="color: #4CAF50; margin-bottom: 15px;">📖 Spielanleitung</h2>
+                <p><strong>Ziel:</strong> Springe auf Plattformen, die Vielfache deiner Zahl sind - Ansonsten: Game Over!</p>
+                <p><strong>Steuerung:</strong></p>
+                <ul style="margin-left: 20px;">
+                    <li>← → Pfeiltasten oder A/D - Bewegung</li>
+                    <li>SPACE - Sprung</li>
+                </ul>
+            </div>
+            <button id="startButton" style="background: #4CAF50; color: white; border: none; padding: 15px 40px; font-size: 20px; border-radius: 5px; cursor: pointer; transition: background 0.3s; margin-bottom: 20px;">Spiel starten</button>
+            <p style="font-size: 14px; opacity: 0.7;">Eine zufällige Zahl zwischen 1-12 wird gewählt</p>
+        </div>
+        <div id="player">
+            <canvas id="playerCanvas" width="25" height="45"></canvas>
+        </div>
+        <div id="ui">
+            <div id="multiplier">Vielfaches von: <span id="multiplierValue">-</span></div>
+            <div id="score">Punkte: <span id="scoreValue">0</span></div>
+            <div id="level">Level: <span id="levelValue">1</span></div>
+        </div>
+        <div id="volumeControl">
+            <label for="volumeSlider">🔊</label>
+            <input type="range" id="volumeSlider" min="0" max="100" value="30">
+        </div>
+        <div id="instructions" style="display: none;">
+            <strong>Steuerung:</strong><br>
+            ← → Bewegung<br>
+            SPACE Sprung
+        </div>
+        <div id="gameOver">
+            <h1>GAME OVER</h1>
+            <div id="finalScore"></div>
+            <div id="finalLevel"></div>
+            <button onclick="location.reload()">Neu spielen</button>
+        </div>
+    </div>
+
+    <div id="leaderboardContainer">
+        <h2>🏆 Rangliste</h2>
+        <div id="loginForm">
+            <input type="text" id="playerNameInput" placeholder="Dein Name">
+            <button id="loginBtn">Anmelden</button>
+            <div id="currentPlayer" class="current-player" style="display: none;">
+                <div class="current-player-name" id="currentPlayerName"></div>
+                <button class="logout-btn" onclick="logout()">Abmelden</button>
+            </div>
+        </div>
+        <div id="leaderboardList"></div>
+    </div>
+
+    <script>
+        // Audio context for sound effects and background music
+        let audioContext = null;
+        let backgroundGainNode = null;
+        let musicOscillators = [];
+
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                backgroundGainNode = audioContext.createGain();
+                backgroundGainNode.connect(audioContext.destination);
+                backgroundGainNode.gain.value = 0.05;
+            }
+        }
+
+        function playSound(frequency, duration, type = 'sine') {
+            try {
+                initAudioContext();
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                osc.connect(gain);
+                gain.connect(audioContext.destination);
+                osc.frequency.value = frequency;
+                osc.type = type;
+                gain.gain.setValueAtTime(0.05, audioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+                osc.start(audioContext.currentTime);
+                osc.stop(audioContext.currentTime + duration);
+            } catch (e) {
+                // Silent fail
+            }
+        }
+
+        function startBackgroundMusic() {
+            try {
+                initAudioContext();
+                
+                // Simple 8-bit style melody pattern
+                const melody = [262, 294, 330, 294, 262, 294, 330, 294]; // C D E D C D E D
+                let noteIndex = 0;
+
+                function playMelodyNote() {
+                    if (!game.gameStarted || game.isGameOver) return;
+                    
+                    const osc = audioContext.createOscillator();
+                    osc.connect(backgroundGainNode);
+                    osc.frequency.value = melody[noteIndex % melody.length];
+                    osc.type = 'square';
+                    osc.start(audioContext.currentTime);
+                    osc.stop(audioContext.currentTime + 0.3);
+                    
+                    noteIndex++;
+                    if (game.gameStarted && !game.isGameOver) {
+                        setTimeout(playMelodyNote, 300);
+                    }
+                }
+                
+                playMelodyNote();
+            } catch (e) {
+                // Silent fail
+            }
+        }
+
+        function stopBackgroundMusic() {
+            // Fade out background music
+            if (backgroundGainNode && audioContext) {
+                backgroundGainNode.gain.setValueAtTime(backgroundGainNode.gain.value, audioContext.currentTime);
+                backgroundGainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.5);
+            }
+        }
+
+        // Volume control
+        document.addEventListener('DOMContentLoaded', () => {
+            const volumeSlider = document.getElementById('volumeSlider');
+            if (volumeSlider) {
+                volumeSlider.addEventListener('input', (e) => {
+                    initAudioContext();
+                    backgroundGainNode.gain.value = (e.target.value / 100) * 0.1;
+                });
+            }
+        });
+
+        function jumpSound() {
+            playSound(400, 0.1);
+            playSound(600, 0.1, 'square');
+        }
+
+        function coinSound() {
+            // Bling sound - higher pitched and pleasant
+            playSound(800, 0.05);
+            playSound(1200, 0.05, 'square');
+            playSound(1600, 0.08);
+        }
+
+        function landSound() {
+            playSound(300, 0.15);
+            playSound(200, 0.1);
+        }
+
+        function gameOverSound() {
+            playSound(100, 0.3);
+            playSound(150, 0.2);
+            playSound(100, 0.3);
+        }
+
+        // Leaderboard system
+        class LeaderboardManager {
+            constructor() {
+                this.loadLeaderboard();
+                this.loadCurrentPlayer();
+            }
+
+            loadLeaderboard() {
+                const saved = localStorage.getItem('geisterhaus_leaderboard');
+                this.leaderboard = saved ? JSON.parse(saved) : [];
+            }
+
+            saveLeaderboard() {
+                localStorage.setItem('geisterhaus_leaderboard', JSON.stringify(this.leaderboard));
+            }
+
+            loadCurrentPlayer() {
+                this.currentPlayer = localStorage.getItem('geisterhaus_currentPlayer');
+            }
+
+            setCurrentPlayer(name) {
+                this.currentPlayer = name;
+                localStorage.setItem('geisterhaus_currentPlayer', name);
+                this.updateCurrentPlayerDisplay();
+            }
+
+            logout() {
+                this.currentPlayer = null;
+                localStorage.removeItem('geisterhaus_currentPlayer');
+                this.updateCurrentPlayerDisplay();
+            }
+
+            addScore(playerName, score) {
+                const existing = this.leaderboard.find(e => e.name === playerName);
+                if (existing) {
+                    existing.score = Math.max(existing.score, score);
+                } else {
+                    this.leaderboard.push({ name: playerName, score: score });
+                }
+                this.leaderboard.sort((a, b) => b.score - a.score);
+                this.leaderboard = this.leaderboard.slice(0, 100);
+                this.saveLeaderboard();
+            }
+
+            getTopPlayers(limit = 10) {
+                return this.leaderboard.slice(0, limit);
+            }
+
+            updateDisplay() {
+                const list = document.getElementById('leaderboardList');
+                const top = this.getTopPlayers(10);
+                
+                let html = '';
+                const badges = ['🥇', '🥈', '🥉'];
+                
+                top.forEach((entry, index) => {
+                    const badge = badges[index] || (index + 1) + '.';
+                    const rankClass = index < 3 ? `rank-${index + 1}` : '';
+                    html += `
+                        <div class="leaderboard-entry ${rankClass}">
+                            <div class="rank-badge">${badge}</div>
+                            <div class="leaderboard-info">
+                                <div class="leaderboard-name">${entry.name}</div>
+                                <div class="leaderboard-score">${entry.score.toLocaleString('de-DE')} Punkte</div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                list.innerHTML = html || '<p style="text-align: center; opacity: 0.6;">Keine Einträge</p>';
+            }
+
+            updateCurrentPlayerDisplay() {
+                const loginForm = document.getElementById('loginForm');
+                const nameInput = document.getElementById('playerNameInput');
+                const currentPlayerDiv = document.getElementById('currentPlayer');
+                const currentPlayerName = document.getElementById('currentPlayerName');
+                
+                if (this.currentPlayer) {
+                    nameInput.style.display = 'none';
+                    document.getElementById('loginBtn').style.display = 'none';
+                    currentPlayerDiv.style.display = 'block';
+                    currentPlayerName.textContent = `Angemeldet als: ${this.currentPlayer}`;
+                } else {
+                    nameInput.style.display = 'block';
+                    document.getElementById('loginBtn').style.display = 'block';
+                    currentPlayerDiv.style.display = 'none';
+                    nameInput.value = '';
+                }
+            }
+        }
+
+        const leaderboard = new LeaderboardManager();
+
+        // Draw stick figure
+        function drawStickFigure(canvas, jumping) {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#333';
+            ctx.fillStyle = '#ff6b6b';
+            ctx.lineWidth = 2;
+
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            // Head
+            ctx.beginPath();
+            ctx.arc(centerX, centerY - 12, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Body
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY - 6);
+            ctx.lineTo(centerX, centerY + 8);
+            ctx.stroke();
+
+            // Arms
+            const armOffsetY = centerY - 2;
+            const armLength = 8;
+            ctx.beginPath();
+            ctx.moveTo(centerX - armLength, armOffsetY);
+            ctx.lineTo(centerX + armLength, armOffsetY);
+            ctx.stroke();
+
+            // Legs
+            const legOffsetX = jumping ? 0 : 3;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY + 8);
+            ctx.lineTo(centerX - legOffsetX - 5, centerY + 16);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY + 8);
+            ctx.lineTo(centerX + legOffsetX + 5, centerY + 16);
+            ctx.stroke();
+        }
+
+        // Main game state
+        const gameContainer = document.getElementById('gameContainer');
+        const player = document.getElementById('player');
+        const playerCanvas = document.getElementById('playerCanvas');
+        const gameOverScreen = document.getElementById('gameOver');
+        const scoreDisplay = document.getElementById('scoreValue');
+        const multiplierDisplay = document.getElementById('multiplierValue');
+        const levelDisplay = document.getElementById('levelValue');
+        const startScreen = document.getElementById('startScreen');
+        const startButton = document.getElementById('startButton');
+
+        // Show instructions only on first visit
+        if (!localStorage.getItem('geisterhaus_visited')) {
+            document.getElementById('instructions').style.display = 'block';
+            localStorage.setItem('geisterhaus_visited', 'true');
+        }
+
+        const game = {
+            multiplier: null,
+            score: 0,
+            level: 1,
+            maxMultiplier: 10,
+            correctLandings: 0,
+            isGameOver: false,
+            gameStarted: false,
+            playerX: 385,
+            playerY: 380,
+            playerVelX: 0,
+            playerVelY: 0,
+            isJumping: false,
+            isOnGround: false,
+            platforms: [],
+            keysPressed: {},
+            lastPlatformY: 460,
+            nextPlatformRow: 1
+        };
+
+        const GRAVITY = 0.35;
+        const JUMP_POWER = 11;
+        const MOVE_ACCEL = 1.2;  // Acceleration for movement - faster, more responsive
+        const PLAYER_WIDTH = 25;
+        const PLAYER_HEIGHT = 45;
+        const PLATFORM_WIDTH = 70;
+        const PLATFORM_HEIGHT = 12;
+        const CONTAINER_WIDTH = 800;
+        const CONTAINER_HEIGHT = 600;
+        
+        // Calculate jump height and platform distance
+        const MAX_JUMP_HEIGHT = (JUMP_POWER * JUMP_POWER) / (2 * GRAVITY); // ~172px
+        const PLATFORM_DISTANCE = Math.floor(MAX_JUMP_HEIGHT * 0.66); // ~114px
+        
+        // Camera offset for scrolling
+        let cameraOffsetY = 0;
+
+        // Start game handler
+        startButton.addEventListener('click', () => {
+            localStorage.setItem('geisterhaus_start_shown', 'true');
+            game.multiplier = Math.floor(Math.random() * 12) + 1;
+            multiplierDisplay.textContent = game.multiplier;
+            levelDisplay.textContent = '1';
+            
+            gameOverScreen.style.display = 'none';
+            startScreen.style.display = 'none';
+            game.gameStarted = true;
+            game.playerX = CONTAINER_WIDTH / 2 - PLAYER_WIDTH / 2;
+            game.playerY = 530;  // Start at bottom of screen
+            game.playerVelY = 0;
+            game.playerVelX = 0;
+            game.isJumping = false;
+            game.isOnGround = false;
+            game.score = 0;
+            scoreDisplay.textContent = '0';
+            game.level = 1;
+            game.maxMultiplier = 10;
+            game.correctLandings = 0;
+            game.isGameOver = false;
+            
+            // Clear old platforms
+            game.platforms.forEach(p => {
+                if (p.element && p.element.parentNode) {
+                    p.element.remove();
+                }
+            });
+            game.platforms = [];
+            game.lastPlatformY = 460;
+            game.nextPlatformRow = 1;
+            generateInitialPlatforms();
+            startBackgroundMusic();
+            gameLoop();
+        });
+
+        // Leaderboard event listeners
+        document.getElementById('loginBtn').addEventListener('click', () => {
+            const name = document.getElementById('playerNameInput').value.trim();
+            if (name.length > 0 && name.length <= 20) {
+                leaderboard.setCurrentPlayer(name);
+                leaderboard.updateDisplay();
+            }
+        });
+
+        function logout() {
+            leaderboard.logout();
+            leaderboard.updateDisplay();
+        }
+
+        function generateInitialPlatforms() {
+            // Create only starting platform - neutral, no points
+            const startX = CONTAINER_WIDTH / 2 - PLATFORM_WIDTH / 2;
+            const startY = 520;  // Clearly visible below player
+            createPlatform(startX, startY, 0, true, true); // 0 number means starting platform, gives no points
+            
+            // Generate first row of platforms
+            setTimeout(() => {
+                createNextRow();
+            }, 100);
+        }
+
+        function getRandomMultiple(base, maxMultiplier) {
+            const multiplier = Math.floor(Math.random() * maxMultiplier) + 1;
+            return base * multiplier;
+        }
+
+        function createNextRow() {
+            // Get player's current Y position and create row above them
+            const nextRowY = game.playerY - PLATFORM_DISTANCE;
+            
+            // Check if we don't already have platforms at this level (allow some tolerance)
+            const existingRow = game.platforms.filter(p => Math.abs(p.y - nextRowY) < 20 && !p.isStarting);
+            if (existingRow.length >= 2) return;
+            
+            // Create left and right platforms symmetrically with 245.7px gap between them
+            const playerCenterX = game.playerX + PLAYER_WIDTH / 2; // Player center
+            const gap = 245.7; // Gap between platforms (where one ends and other starts)
+            const totalWidth = PLATFORM_WIDTH + gap + PLATFORM_WIDTH; // 70 + 245.7 + 70 = 385.7
+            const leftX = playerCenterX - totalWidth / 2; // Start of left platform
+            const rightX = leftX + PLATFORM_WIDTH + gap; // Start of right platform
+            
+            // Ensure platforms stay on screen
+            const leftXClamped = Math.max(0, Math.min(leftX, CONTAINER_WIDTH - PLATFORM_WIDTH));
+            const rightXClamped = Math.max(0, Math.min(rightX, CONTAINER_WIDTH - PLATFORM_WIDTH));
+            
+            // Generate two different random numbers
+            let number1 = Math.floor(Math.random() * 500) + 1;
+            let number2 = Math.floor(Math.random() * 500) + 1;
+            
+            const isValid1 = number1 % game.multiplier === 0 && number1 <= (game.maxMultiplier * game.multiplier);
+            const isValid2 = number2 % game.multiplier === 0 && number2 <= (game.maxMultiplier * game.multiplier);
+            
+            // Ensure one is valid and one is invalid
+            if (isValid1 === isValid2) {
+                if (isValid1) {
+                    // Both valid, make second invalid
+                    number2 = Math.floor(Math.random() * 500) + 1;
+                    while (number2 % game.multiplier === 0 && number2 <= (game.maxMultiplier * game.multiplier)) {
+                        number2 = Math.floor(Math.random() * 500) + 1;
+                    }
+                } else {
+                    // Both invalid, make second valid
+                    number2 = getRandomMultiple(game.multiplier, game.maxMultiplier);
+                }
+            }
+            
+            const isValid2New = number2 % game.multiplier === 0 && number2 <= (game.maxMultiplier * game.multiplier);
+            
+            // Create platforms
+            createPlatform(leftXClamped, nextRowY, number1, isValid1, false);
+            createPlatform(rightXClamped, nextRowY, number2, isValid2New, false);
+        }
+
+        function createPlatform(x, y, number, isValid, isStarting = false) {
+            const platform = {
+                x: x,
+                y: y,
+                number: number,
+                isValid: isValid,
+                isStarting: isStarting,
+                element: null,
+                createdTime: Date.now(),
+                disappeared: false,
+                counted: false
+            };
+
+            const platformDiv = document.createElement('div');
+            platformDiv.className = `platform ${platform.isValid ? 'valid' : 'invalid'}`;
+            platformDiv.textContent = platform.number;
+            platformDiv.style.left = platform.x + 'px';
+            platformDiv.style.top = platform.y + 'px';
+            gameContainer.appendChild(platformDiv);
+            platform.element = platformDiv;
+            
+            game.platforms.push(platform);
+            return platform;
+        }
+
+        function updatePlatforms() {
+            // Remove platforms that are far off-screen
+            game.platforms = game.platforms.filter(p => {
+                if (p.y > CONTAINER_HEIGHT + 50) {
+                    if (p.element && p.element.parentNode) {
+                        p.element.remove();
+                    }
+                    return false;
+                }
+                return true;
+            });
+
+            // Remove wrong platforms after timeout
+            game.platforms.forEach(platform => {
+                if (!platform.isValid && !platform.isStarting && !platform.disappeared) {
+                    const elapsedTime = Date.now() - platform.createdTime;
+                    if (elapsedTime > 5000) {
+                        platform.element.classList.add('disappearing');
+                        platform.disappeared = true;
+                        setTimeout(() => {
+                            if (platform.element && platform.element.parentNode) {
+                                platform.element.remove();
+                            }
+                        }, 800);
+                    }
+                }
+            });
+        }
+
+        function updatePlayer() {
+            // Horizontal movement with acceleration (no fixed range)
+            if (game.keysPressed['ArrowLeft'] || game.keysPressed['a'] || game.keysPressed['A']) {
+                game.playerVelX -= MOVE_ACCEL;  // Accelerate left
+            } else if (game.keysPressed['ArrowRight'] || game.keysPressed['d'] || game.keysPressed['D']) {
+                game.playerVelX += MOVE_ACCEL;  // Accelerate right
+            } else {
+                game.playerVelX *= 0.85;  // Friction when not accelerating
+            }
+
+            game.playerX += game.playerVelX;
+            game.playerY += game.playerVelY;
+            game.playerVelY += GRAVITY;
+
+            // Boundary check
+            if (game.playerX < 0) game.playerX = 0;
+            if (game.playerX + PLAYER_WIDTH > CONTAINER_WIDTH) {
+                game.playerX = CONTAINER_WIDTH - PLAYER_WIDTH;
+            }
+
+            // Update camera: always show current platform and next row
+            // Find all platforms and player to determine camera bounds
+            if (game.platforms.length > 0) {
+                const platformYs = game.platforms.map(p => p.y);
+                const highestPlatformY = Math.min(...platformYs);
+                const lowestPlatformY = Math.max(...platformYs);
+                const playerY = game.playerY;
+                
+                // Calculate what needs to be visible:
+                // - Top: highest platform minus margin (for next row after jump)
+                // - Bottom: lowest platform or player, whichever is lower
+                const topBound = Math.max(0, highestPlatformY - 80);
+                const bottomBound = Math.max(playerY, lowestPlatformY) + 80;
+                const contentHeight = bottomBound - topBound;
+                
+                // Position camera to fit all content, keeping player roughly in middle
+                let targetCameraY = topBound;
+                if (contentHeight <= CONTAINER_HEIGHT) {
+                    // Content fits on screen - center on player
+                    targetCameraY = Math.max(0, playerY - CONTAINER_HEIGHT / 2);
+                } else {
+                    // Content doesn't fit - show from top
+                    targetCameraY = topBound;
+                }
+                
+                // Smooth camera transition
+                cameraOffsetY += (targetCameraY - cameraOffsetY) * 0.2;
+                cameraOffsetY = Math.max(0, cameraOffsetY);
+            }
+
+            // Check collisions
+            game.isOnGround = false;
+            checkPlatformCollisions();
+
+            // Game over if fell too far below
+            if (game.playerY > cameraOffsetY + CONTAINER_HEIGHT) {
+                endGame();
+            }
+
+            // Update display
+            drawStickFigure(playerCanvas, game.isJumping);
+            player.style.left = game.playerX + 'px';
+            player.style.top = (game.playerY - cameraOffsetY) + 'px';
+            
+            // Update all platform positions with camera offset
+            game.platforms.forEach(p => {
+                if (p.element) {
+                    p.element.style.top = (p.y - cameraOffsetY) + 'px';
+                }
+            });
+        }
+
+        function checkPlatformCollisions() {
+            const playerBottom = game.playerY + PLAYER_HEIGHT;
+            const playerTop = game.playerY;
+            const playerRight = game.playerX + PLAYER_WIDTH;
+            const playerLeft = game.playerX;
+
+            game.platforms.forEach(platform => {
+                if (platform.disappeared) return;
+
+                const platformTop = platform.y;
+                const platformBottom = platform.y + PLATFORM_HEIGHT;
+                const platformRight = platform.x + PLATFORM_WIDTH;
+                const platformLeft = platform.x;
+
+                // Check collision
+                if (playerBottom >= platformTop && 
+                    playerBottom <= platformBottom + 10 &&
+                    playerTop < platformBottom &&
+                    playerRight > platformLeft &&
+                    playerLeft < platformRight &&
+                    game.playerVelY > 0) {
+                    
+                    if (platform.isValid) {
+                        // Land on valid platform
+                        game.playerY = platformTop - PLAYER_HEIGHT;
+                        game.playerVelY = 0;
+                        game.playerVelX = 0;  // Stop horizontal momentum to prevent sliding off
+                        game.isJumping = false;
+                        game.isOnGround = true;
+                        
+                        // Add score only once per platform (not starting platform)
+                        if (!platform.counted && !platform.isStarting) {
+                            game.score += 100; // Fixed score per correct landing
+                            scoreDisplay.textContent = game.score;
+                            game.correctLandings++;
+                            platform.counted = true;
+                            
+                            coinSound();
+
+                            // Check level up
+                            if (game.correctLandings % 5 === 0) {
+                                game.level++;
+                                game.maxMultiplier = 10 + (game.level - 1) * 10;
+                                levelDisplay.textContent = game.level;
+                            }
+                            
+                            // Generate next row
+                            createNextRow();
+                        } else {
+                            landSound();
+                        }
+                    } else {
+                        // Land on invalid platform - game over
+                        endGame();
+                    }
+                }
+            });
+        }
+
+        function jump() {
+            if (game.isOnGround) {
+                game.playerVelY = -JUMP_POWER;
+                game.isJumping = true;
+                game.isOnGround = false;
+                jumpSound();
+            }
+        }
+
+        function endGame() {
+            game.isGameOver = true;
+            game.gameStarted = false;
+            stopBackgroundMusic();
+            gameOverScreen.style.display = 'block';
+            gameOverSound();
+            
+            document.getElementById('finalScore').textContent = `Endpunktzahl: ${game.score}`;
+            document.getElementById('finalLevel').textContent = `Erreichte Stufe: ${game.level}`;
+            
+            if (leaderboard.currentPlayer) {
+                leaderboard.addScore(leaderboard.currentPlayer, game.score);
+                leaderboard.updateDisplay();
+            }
+        }
+
+        // Event listeners
+        document.addEventListener('keydown', (e) => {
+            if (!game.gameStarted) return;
+            
+            game.keysPressed[e.key] = true;
+            if (e.key === ' ') {
+                e.preventDefault();
+                jump();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            game.keysPressed[e.key] = false;
+        });
+
+        // Game loop
+        function gameLoop() {
+            if (game.gameStarted && !game.isGameOver) {
+                updatePlayer();
+                updatePlatforms();
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Initialize
+        leaderboard.updateDisplay();
+        leaderboard.updateCurrentPlayerDisplay();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
