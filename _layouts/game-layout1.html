@@ -40,7 +40,7 @@
   {% include footer.html %}
 
   <script>
-    // Basis-Struktur für das Spiel
+    // Basis-Struktur für das Spiel mit Config-Support
     class Game {
       constructor() {
         this.canvas = document.getElementById('gameCanvas');
@@ -49,16 +49,144 @@
         this.level = 1;
         this.isRunning = false;
         this.isPaused = false;
+        
+        // Quiz-spezifische Properties
+        this.isQuiz = false;
+        this.questions = [];
+        this.currentQuestionIndex = 0;
+        this.currentQuestion = null;
+        this.answered = false;
+        
         this.init();
       }
 
       init() {
         this.attachEventListeners();
+        // Initialisiere Quiz wenn gameConfig existiert
+        if (window.gameConfig && window.gameConfig.type === 'quiz') {
+          this.initializeQuiz(window.gameConfig);
+        }
         this.draw();
       }
 
+      // ===== Quiz-Unterstützung =====
+      initializeQuiz(config) {
+        this.isQuiz = true;
+        this.questions = config.questions || [];
+        this.currentQuestionIndex = 0;
+        this.currentQuestion = null;
+        this.answered = false;
+        
+        // Setup Quiz-spezifische Event-Listener
+        const buttons = document.querySelectorAll('.answer-btn');
+        buttons.forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            if (!this.answered && this.isRunning) {
+              this.checkAnswer(parseInt(e.target.dataset.index));
+            }
+          });
+        });
+      }
+
+      startQuiz() {
+        this.score = 0;
+        this.level = 1;
+        this.currentQuestionIndex = 0;
+        this.isRunning = true;
+        this.loadQuestion();
+        this.updateUI();
+      }
+
+      loadQuestion() {
+        if (this.currentQuestionIndex >= this.questions.length) {
+          this.endQuiz();
+          return;
+        }
+
+        this.answered = false;
+        this.currentQuestion = this.questions[this.currentQuestionIndex];
+        this.displayQuestion();
+        this.clearFeedback();
+      }
+
+      displayQuestion() {
+        const img = document.getElementById('cityImage');
+        if (this.currentQuestion.image) {
+          img.src = this.currentQuestion.image;
+          img.alt = this.currentQuestion.question || '';
+        }
+
+        const buttons = document.querySelectorAll('.answer-btn');
+        buttons.forEach((btn, index) => {
+          btn.textContent = this.currentQuestion.answers[index];
+          btn.dataset.answer = this.currentQuestion.answers[index];
+          btn.classList.remove('correct', 'incorrect');
+          btn.disabled = false;
+        });
+      }
+
+      checkAnswer(buttonIndex) {
+        this.answered = true;
+        const selectedAnswer = this.currentQuestion.answers[buttonIndex];
+        const correctAnswer = this.currentQuestion.correct;
+        const buttons = document.querySelectorAll('.answer-btn');
+
+        if (selectedAnswer === correctAnswer) {
+          this.score += 10;
+          buttons[buttonIndex].classList.add('correct');
+          this.showFeedback('✓ Richtig!', true);
+        } else {
+          buttons[buttonIndex].classList.add('incorrect');
+          this.showFeedback('✗ Falsch! Richtig: ' + correctAnswer, false);
+          // Zeige die richtige Antwort
+          buttons.forEach((btn) => {
+            if (btn.dataset.answer === correctAnswer) {
+              btn.classList.add('correct');
+            }
+          });
+        }
+
+        this.updateUI();
+        setTimeout(() => this.nextQuestion(), 2000);
+      }
+
+      nextQuestion() {
+        this.currentQuestionIndex++;
+        this.loadQuestion();
+      }
+
+      endQuiz() {
+        this.isRunning = false;
+        this.showFeedback('Spiel vorbei! Dein Score: ' + this.score, true);
+        const buttons = document.querySelectorAll('.answer-btn');
+        buttons.forEach(btn => btn.disabled = true);
+      }
+
+      showFeedback(message, isCorrect) {
+        const feedback = document.getElementById('feedback');
+        if (feedback) {
+          feedback.textContent = message;
+          feedback.className = 'feedback ' + (isCorrect ? 'feedback-correct' : 'feedback-incorrect');
+          feedback.style.display = 'block';
+        }
+      }
+
+      clearFeedback() {
+        const feedback = document.getElementById('feedback');
+        if (feedback) {
+          feedback.style.display = 'none';
+        }
+      }
+
+      // ===== Standard Game-Methoden =====
       attachEventListeners() {
-        document.getElementById('startBtn').addEventListener('click', () => this.start());
+        document.getElementById('startBtn').addEventListener('click', () => {
+          if (this.isQuiz) {
+            this.startQuiz();
+          } else {
+            this.start();
+          }
+        });
         document.getElementById('resetBtn').addEventListener('click', () => this.reset());
         document.getElementById('pauseBtn').addEventListener('click', () => this.togglePause());
       }
@@ -96,6 +224,8 @@
 
       draw() {
         // Canvas zeichnen
+        if (this.isQuiz) return; // Quiz nutzt kein Canvas
+        
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.ctx.fillStyle = '#f5f5f5';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
