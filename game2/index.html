@@ -1,1 +1,376 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blood Runner - Anatomie Spiel</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #1a1a2e;
+            font-family: Arial, sans-serif;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+        }
+        
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #0f3460;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container"></div>
+
+    <script>
+        // ==================== PHASER CONFIG ====================
+        const config = {
+            type: Phaser.AUTO,
+            width: 400,
+            height: 600,
+            parent: 'game-container',
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: { y: 0 },
+                    debug: false
+                }
+            },
+            scene: [BloodRunnerScene]
+        };
+
+        const game = new Phaser.Game(config);
+
+        // ==================== HAUPTSPIEL-SZENE ====================
+        class BloodRunnerScene extends Phaser.Scene {
+            constructor() {
+                super('BloodRunner');
+            }
+
+            create() {
+                // ===== INITIALISIERUNG =====
+                this.gameOver = false;
+                this.score = 0;
+                this.lives = 3;
+                this.speed = 4;
+                this.baseSpeed = 4;
+                this.difficulty = 0;
+                this.elapsedTime = 0;
+
+                // Eingabe
+                this.keys = this.input.keyboard.createCursorKeys();
+                this.wasd = this.input.keyboard.addKeys({
+                    w: Phaser.Input.Keyboard.KeyCodes.W,
+                    a: Phaser.Input.Keyboard.KeyCodes.A,
+                    s: Phaser.Input.Keyboard.KeyCodes.S,
+                    d: Phaser.Input.Keyboard.KeyCodes.D
+                });
+
+                // Gruppen erstellen
+                this.bloodVessels = this.add.group();
+                this.obstacles = this.add.group();
+                this.oxygen = this.add.group();
+                this.particles = this.add.particles(0xffffff);
+
+                // Hintergrund
+                this.createBackground();
+
+                // Spieler
+                this.player = this.createPlayer();
+
+                // UI
+                this.createUI();
+
+                // Events
+                this.physics.add.overlap(this.player, this.oxygen, (player, bubble) => this.collectOxygen(bubble));
+                this.physics.add.overlap(this.player, this.obstacles, (player, obstacle) => this.hitObstacle());
+
+                // Spawn-Timer
+                this.time.addEvent({ delay: 500, callback: () => this.spawnObstacle(), loop: true });
+                this.time.addEvent({ delay: 800, callback: () => this.spawnOxygen(), loop: true });
+                this.time.addEvent({ delay: 5000, callback: () => this.increaseDifficulty(), loop: true });
+            }
+
+            update() {
+                if (this.gameOver) return;
+
+                this.elapsedTime += this.game.loop.delta;
+
+                // ===== BLUTBAHN SCROLLEN =====
+                this.bloodVessels.children.entries.forEach(vessel => {
+                    vessel.y += this.speed;
+                    if (vessel.y > this.cameras.main.height + 50) {
+                        vessel.destroy();
+                    }
+                });
+
+                // ===== HINDERNISSE BEWEGEN =====
+                this.obstacles.children.entries.forEach(obstacle => {
+                    obstacle.y += this.speed;
+                    if (obstacle.y > this.cameras.main.height + 50) {
+                        obstacle.destroy();
+                    }
+                });
+
+                // ===== SAUERSTOFF BEWEGEN =====
+                this.oxygen.children.entries.forEach(bubble => {
+                    bubble.y += this.speed;
+                    bubble.angle += 3;
+                    if (bubble.y > this.cameras.main.height + 50) {
+                        bubble.destroy();
+                    }
+                });
+
+                // ===== SPIELER-STEUERUNG =====
+                this.handlePlayerInput();
+
+                // ===== BLUTBAHNEN SPAWNEN =====
+                if (!this.nextVesselTime) this.nextVesselTime = this.time.now;
+                if (this.time.now - this.nextVesselTime > 100) {
+                    this.spawnBloodVessel();
+                    this.nextVesselTime = this.time.now;
+                }
+            }
+
+            createBackground() {
+                // Farbverlauf-Hintergrund (Körperinneres)
+                const graphics = this.make.graphics({ x: 0, y: 0, add: false });
+                graphics.fillStyle(0x1a0a1a, 1);
+                graphics.fillRect(0, 0, 400, 600);
+                graphics.generateTexture('bgTexture', 400, 600);
+                graphics.destroy();
+
+                this.add.image(200, 300, 'bgTexture');
+            }
+
+            createPlayer() {
+                // Spieler-Kreis
+                const player = this.add.circle(200, 500, 12, 0xff6b6b);
+                player.setStroke(0xff0000, 2);
+                this.physics.add.existing(player);
+                player.body.setCollideWorldBounds(true);
+                player.body.setBounce(0.2);
+
+                // Lanespuren (3 Blutbahnen)
+                player.lanes = [80, 200, 320];
+                player.currentLane = 1;
+                player.targetX = player.lanes[player.currentLane];
+                player.x = player.targetX;
+
+                return player;
+            }
+
+            handlePlayerInput() {
+                const moveLeft = this.keys.left.isDown || this.wasd.a.isDown;
+                const moveRight = this.keys.right.isDown || this.wasd.d.isDown;
+                const moveUp = this.keys.up.isDown || this.wasd.w.isDown;
+                const moveDown = this.keys.down.isDown || this.wasd.s.isDown;
+
+                // Seitwärtsbewegung zwischen Spuren
+                if (moveLeft && this.player.currentLane > 0) {
+                    this.player.currentLane--;
+                    this.player.targetX = this.player.lanes[this.player.currentLane];
+                    this.keys.left.isDown = false;
+                    this.wasd.a.isDown = false;
+                }
+                if (moveRight && this.player.currentLane < 2) {
+                    this.player.currentLane++;
+                    this.player.targetX = this.player.lanes[this.player.currentLane];
+                    this.keys.right.isDown = false;
+                    this.wasd.d.isDown = false;
+                }
+
+                // Smooth-Movement zur Zielspur
+                this.player.x += (this.player.targetX - this.player.x) * 0.15;
+
+                // Vertikal-Bewegung
+                if (moveUp) {
+                    this.player.y = Math.max(this.player.y - 6, 50);
+                }
+                if (moveDown) {
+                    this.player.y = Math.min(this.player.y + 6, 550);
+                }
+            }
+
+            spawnBloodVessel() {
+                // Rund, rötliche Blutbahn als dünne Ringe
+                const lane = Phaser.Math.Between(0, 2);
+                const x = [80, 200, 320][lane];
+                const vessel = this.add.circle(x, -20, 25);
+                vessel.setStroke(0xcc0000, 3);
+                vessel.setFillStyle(0x330000, 0.3);
+                this.physics.add.existing(vessel);
+                vessel.body.setVelocityY(0);
+                this.bloodVessels.add(vessel);
+            }
+
+            spawnObstacle() {
+                // Blutklumpen (rötliche, organische Formen)
+                const lane = Phaser.Math.Between(0, 2);
+                const x = [80, 200, 320][lane];
+                const y = -40;
+                
+                // Größe und Form variieren
+                const size = Phaser.Math.Between(15, 25);
+                const obstacle = this.add.circle(x, y, size, 0x990000);
+                obstacle.setStroke(0x660000, 2);
+                
+                this.physics.add.existing(obstacle);
+                obstacle.body.setVelocityY(0);
+                
+                // Zufällige Horizontalbewegung
+                obstacle.velocityX = Phaser.Math.Between(-1, 1) * 2;
+                
+                this.obstacles.add(obstacle);
+            }
+
+            spawnOxygen() {
+                // Sauerstoffblasen (hellblaue Kugeln)
+                const lane = Phaser.Math.Between(0, 2);
+                const x = [80, 200, 320][lane];
+                const bubble = this.add.circle(x, -30, 8, 0x00d4ff);
+                bubble.setStroke(0x00a8cc, 1);
+                bubble.setFillStyle(0x00d4ff, 0.8);
+                
+                this.physics.add.existing(bubble);
+                bubble.body.setVelocityY(0);
+                
+                this.oxygen.add(bubble);
+            }
+
+            collectOxygen(bubble) {
+                // Partikel-Effekt
+                const emitter = this.particles.createEmitter({
+                    speed: { min: -200, max: 200 },
+                    angle: { min: 240, max: 300 },
+                    scale: { start: 1, end: 0 },
+                    lifespan: 600,
+                    gravityY: 0
+                });
+                emitter.emitParticleAt(bubble.x, bubble.y, 8);
+
+                // Sound-Effekt (optional - einfacher Beep)
+                this.sound.play('collect', { volume: 0.5 }).catch(() => {});
+
+                this.score += 10;
+                bubble.destroy();
+                this.updateUI();
+            }
+
+            hitObstacle() {
+                if (this.gameOver) return;
+
+                this.lives--;
+
+                // Hit-Effekt
+                this.cameras.main.shake(200, 0.02);
+                const emitter = this.particles.createEmitter({
+                    speed: { min: -150, max: 150 },
+                    angle: { min: 200, max: 340 },
+                    scale: { start: 1, end: 0 },
+                    lifespan: 500,
+                    gravityY: 0,
+                    tint: 0xff0000
+                });
+                emitter.emitParticleAt(this.player.x, this.player.y, 12);
+
+                this.updateUI();
+
+                if (this.lives <= 0) {
+                    this.endGame();
+                }
+            }
+
+            increaseDifficulty() {
+                this.difficulty++;
+                this.speed = this.baseSpeed + (this.difficulty * 0.5);
+            }
+
+            createUI() {
+                // Score
+                this.scoreText = this.add.text(16, 16, `Score: ${this.score}`, {
+                    fontSize: '20px',
+                    fill: '#00d4ff',
+                    fontStyle: 'bold'
+                });
+
+                // Lives
+                this.livesText = this.add.text(16, 50, `❤️ ${this.lives}`, {
+                    fontSize: '20px',
+                    fill: '#ff6b6b'
+                });
+
+                // Difficulty (optional)
+                this.diffText = this.add.text(300, 16, `Lv: ${this.difficulty}`, {
+                    fontSize: '16px',
+                    fill: '#ffaa00'
+                });
+            }
+
+            updateUI() {
+                this.scoreText.setText(`Score: ${this.score}`);
+                this.livesText.setText(`❤️ ${this.lives}`);
+                this.diffText.setText(`Lv: ${this.difficulty}`);
+            }
+
+            endGame() {
+                this.gameOver = true;
+                this.physics.pause();
+
+                // Game Over Overlay
+                const overlay = this.add.rectangle(200, 300, 400, 600, 0x000000, 0.7);
+                
+                // Game Over Text
+                const gameOverText = this.add.text(200, 200, 'GAME OVER', {
+                    fontSize: '48px',
+                    fill: '#ff0000',
+                    fontStyle: 'bold',
+                    align: 'center'
+                }).setOrigin(0.5);
+
+                // Final Score
+                const finalScoreText = this.add.text(200, 280, `Final Score: ${this.score}`, {
+                    fontSize: '28px',
+                    fill: '#00d4ff',
+                    align: 'center'
+                }).setOrigin(0.5);
+
+                // Restart Button Text
+                const restartText = this.add.text(200, 380, 'Drücke R zum Neustart', {
+                    fontSize: '18px',
+                    fill: '#ffaa00',
+                    align: 'center'
+                }).setOrigin(0.5);
+
+                // Restart auf R-Taste
+                this.input.keyboard.once('keydown-R', () => {
+                    this.scene.restart();
+                });
+            }
+        }
+
+        // ===== SIMPLE SOUND SETUP (Fallback) =====
+        // Erstelle einen stillen Sound zum Vermeiden von Errors
+        document.addEventListener('DOMContentLoaded', () => {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            audioContext.resume();
+        });
+    </script>
+</body>
+</html>
 
