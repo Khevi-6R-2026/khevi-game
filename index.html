@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Khevenhüller Portal</title>
+    <style>
+        :root {
+            --facade: #d2c19d;
+            --trim: #f1d668;
+            --door: #1a2a4e;
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle, #4facfe 0%, #00f2fe 100%);
+            font-family: 'Arial Black', sans-serif;
+            transition: transform 0.8s cubic-bezier(0.45, 0.05, 0.55, 0.95), opacity 0.8s;
+            transform-origin: 0 0;
+        }
+
+        .portal-container {
+            width: 90vmin;
+            height: 90vmin;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .building-front {
+            background-color: var(--facade);
+            width: 100%;
+            height: 100%;
+            border: 1vmin solid var(--trim);
+            border-bottom: 4vmin solid #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            box-shadow: 0 5vh 15vh rgba(0, 0, 0, 0.4);
+            border-radius: 1vmin 1vmin 0 0;
+        }
+
+        .white-portal {
+            background-color: #eed294;
+            width: 80%;
+            height: 80%;
+            border: 1.5vmin solid var(--trim);
+            border-bottom: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 5%;
+        }
+
+        h1 {
+            font-size: 5vmin;
+            color: #0c1a35;
+            letter-spacing: 0.5vmin;
+            position: absolute;
+            top: 15%;
+        }
+
+        .sub {
+            font-size: 2vmin;
+            letter-spacing: 1vmin;
+            color: #444;
+            margin-bottom: auto;
+            position: relative;
+            top: 13%;
+        }
+
+        /* Die Tür mit der richtigen kombinierten Klasse */
+        .door-btn {
+            width: 45%;
+            height: 55%;
+            background-color: var(--door);
+            border: 0.8vmin solid #111;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .door-btn:hover {
+            background-color: #253b6e;
+            transform: scale(1.03);
+            box-shadow: 0 0 5vmin var(--trim);
+        }
+
+        .zoom-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Dekorative Balken */
+        .querbalken {
+            background-color: var(--trim);
+            width: 78%;
+            height: 2%;
+            position: absolute;
+            top: 38%;
+        }
+
+        .senkrecht {
+            background-color: var(--trim);
+            width: 2%;
+            height: 55.5%;
+            position: absolute;
+            top: 40%;
+        }
+
+        .mittel {
+            background-color: #0c0d20;
+            width: 1%;
+            height: 42%;
+            position: absolute;
+            top: 53%;
+            left: 49.5%;
+        }
+
+        .hint {
+            position: absolute;
+            bottom: 5vh;
+            color: white;
+            font-size: 2vmin;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            50% {
+                opacity: 0.3;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="portal-container">
+        <div class="building-front">
+            <div class="white-portal">
+                <h1>KHEVENHÜLLER</h1>
+                <div class="sub">GYMNASIUM LINZ</div>
+
+                <div class="querbalken"></div>
+                <div class="senkrecht" style="left: 28%;"></div>
+                <div class="senkrecht" style="left: 70%;"></div>
+                <div class="mittel"></div>
+
+                <a href="Startseite-khevigame.html" class="door-btn zoom-link"></a>
+            </div>
+        </div>
+    </div>
+    <div class="hint" style="top: 96%;">Klicke auf die Tür</div>
+
+
+    <script>
+        document.addEventListener('click', function (e) {
+            const link = e.target.closest('.zoom-link');
+            if (!link) return;
+
+            e.preventDefault();
+            const targetUrl = link.href;
+
+            const x = e.clientX;
+            const y = e.clientY;
+            const scale = 8; // Höherer Zoom für besseren Effekt
+
+            document.body.style.transform = `translate(${x - x * scale}px, ${y - y * scale}px) scale(${scale})`;
+            document.body.classList.add('zoom-out');
+
+            setTimeout(() => {
+                window.location.href = targetUrl;
+            }, 800);
+        });
+    </script>
+</body>
+
+</html>

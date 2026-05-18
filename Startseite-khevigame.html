@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>School Corridor Adventure</title>
+    <style>
+        :root {
+            /* Farben basierend auf dem Foto */
+            --wand-weiss: #978444;
+            --boden-grau: #d1d1d1;
+            --tuer-braun: #c5a07d;
+            --akzent-blau: #3498db;
+            --licht: #ffffff;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body,
+        html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #353434;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: transform 0.8s ease-in-out;
+            transform-origin: 0 0;
+            /* Wichtig für die korrekte Zoom-Position */
+        }
+
+        #game-viewport {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: var(--wand-weiss);
+            /* Erzeugt den Fliesen-Effekt des Bodens */
+            background-image:
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+                linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+            border: 20px solid #333;
+            overflow: hidden;
+        }
+
+        /* Die Straßen sind jetzt der graue Boden des Korridors */
+        .road {
+            position: absolute;
+            background: var(--boden-grau);
+            z-index: 1;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.1);
+            border: 1px solid #bcbcbc;
+        }
+
+        /* Dekorative Elemente: Deckenleuchten wie im Bild */
+        .light {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background: var(--licht);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
+            border: 2px solid #ddd;
+            z-index: 0;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            padding: 2px;
+        }
+
+        #player {
+            position: absolute;
+            width: 40px;
+            height: 55px;
+            z-index: 100;
+            transition: transform 0.1s ease;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .head {
+            width: 22px;
+            height: 22px;
+            background: #ff910b;
+            border-radius: 50%;
+            border: 2px solid #000;
+        }
+
+        .body {
+            width: 30px;
+            height: 32px;
+            background: #09a814;
+            border-radius: 6px;
+            border: 2px solid #000;
+            margin-top: -3px;
+        }
+
+        .node {
+            position: absolute;
+            width: 70px;
+            height: 70px;
+            background: #fff;
+            border: 4px solid var(--tuer-braun);
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 35px;
+            z-index: 10;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.1);
+        }
+
+        .node.active {
+            transform: scale(1.3);
+            background: var(--licht);
+            border-color: #000;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.2);
+            z-index: 110;
+        }
+
+        #overlay-ui {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            padding: 10px 25px;
+            border-radius: 4px;
+            border-bottom: 4px solid var(--tuer-braun);
+            pointer-events: none;
+            text-align: center;
+            font-family: sans-serif;
+            font-weight: bold;
+
+        }
+
+        .path-text {
+            position: absolute;
+            color: #333;
+            font-family: 'Arial', sans-serif;
+            font-size: 20px;
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        body {
+            -webkit-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        .door {
+            background-color: #16195b;
+            width: 7px;
+            height: 50px;
+            position: absolute;
+        }
+
+        .door-left {
+            background-color: #16195b;
+            width: 30px;
+            height: 7px;
+            position: absolute;
+        }
+
+        .door-right {
+            background-color: #16195b;
+            width: 30px;
+            height: 7px;
+            position: absolute;
+        }
+
+        :root {
+            --skin: #eebf91;
+            --hair: #2b1d1d;
+            --suit: #c0c0c0;
+            --shirt: #4a4444;
+            --bg-top: #adb5bd;
+            --bg-bottom: #f8f9fa;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(to bottom, var(--bg-top), var(--bg-bottom));
+        }
+
+        .portrait {
+            position: relative;
+            width: 300px;
+            height: 400px;
+            overflow: hidden;
+            background: transparent;
+        }
+
+        /* Kopf & Gesicht */
+        .face {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 140px;
+            height: 180px;
+            background: var(--skin);
+            border-radius: 60px 60px 70px 70px;
+            z-index: 2;
+        }
+
+        /* Haare */
+        .hair {
+            position: absolute;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 80px;
+            background: var(--hair);
+            border-radius: 80px 80px 20px 20px;
+            z-index: 3;
+        }
+
+        /* Bart (Goatee/Kinnbart-Stil) */
+        .beard {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 35px;
+            background: var(--hair);
+            clip-path: polygon(50% 100%, 0% 0%, 100% 0%);
+            z-index: 4;
+        }
+
+        .mustache {
+            position: absolute;
+            bottom: 55px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 70px;
+            height: 10px;
+            background: var(--hair);
+            border-radius: 5px;
+            z-index: 4;
+        }
+
+        /* Kleidung */
+        .suit {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 180px;
+            background: var(--suit);
+            border-radius: 100px 100px 0 0;
+            z-index: 1;
+        }
+
+        .shirt-v {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 100px;
+            background: var(--shirt);
+            clip-path: polygon(0 0, 100% 0, 50% 100%);
+        }
+
+        .lapel-left,
+        .lapel-right {
+            position: absolute;
+            top: 0;
+            width: 50px;
+            height: 120px;
+            background: var(--suit);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .lapel-left {
+            left: 80px;
+            transform: rotate(-15deg);
+        }
+
+        .lapel-right {
+            right: 80px;
+            transform: rotate(15deg);
+        }
+
+        .auge {
+            background-color: #000000;
+            border-radius: 50%;
+            /* Macht es rund */
+        }
+
+        #overlay {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+            padding: 20px;
+            border-radius: 4px;
+            border: 2px solid #333;
+            font-family: sans-serif;
+            z-index: 1000;
+            cursor: pointer;
+            box-shadow: 10px 10px 0px rgba(0, 0, 0, 0.2);
+
+
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            min-width: 400px;
+            height: 300px;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div id="overlay">
+        <div class="portrait"
+            style="width: 300px; height: 390px; flex-shrink: 0; transform: scale(0.6); transform-origin: center; top:1%; left: 2%;">
+            <div class="hair"></div>
+            <div class="face">
+                <div class="auge" style="position: absolute; top: 75px; left: 40px; width: 20px; height: 20px;">
+                </div>
+                <div class="auge" style="position: absolute; top: 75px; right: 40px; width: 20px; height: 20px;">
+                </div>
+                <div class="mustache"></div>
+                <div class="beard"></div>
+            </div>
+            <div class="suit">
+                <div class="shirt-v"></div>
+                <div class="lapel-left"></div>
+                <div class="lapel-right"></div>
+            </div>
+        </div>
+
+        <div class="text-content">
+            <b>Willkommen im Schulkorridor!</b><br>
+            Bewege dich mit den Pfeiltasten oder ziehe die Maus. <br>
+            Berühre ein Level-Icon zum Starten eines Mini-games. <br><br>
+            <i>Klicken zum Starten...</i>
+        </div>
+
+    </div>
+    </div>
+    <div id="overlay-ui">
+        Schul-Abenteuer: Korridor
+    </div>
+
+    <div id="game-viewport">
+        <div class="light" style="top: 48%; left: 15%;"></div>
+        <div class="light" style="top: 48%; left: 35%;"></div>
+        <div class="light" style="top: 48%; left: 55%;"></div>
+        <div class="light" style="top: 48%; left: 75%;"></div>
+
+        <div class="road" style="left: 5%; top: 45%; width: 80%; height: 10%;">
+            <div class="door" style="top: 4%; left: -0.5%;"></div>
+            <div class="door-left" style="top: 4%; left: -0.5%;"></div>
+            <div class="door-right" style="top: 85%; left: -0.5%;"></div>
+        </div>
+        <div class="road" style="left: 20%; top: 55%; width: 5%; height: 30%;"></div>
+        <div class="road" style="left: 20%; top: 15%; width: 5%; height: 30%;"></div>
+        <div class="road" style="left: 35%; top: 55%; width: 5%; height: 30%;"></div>
+        <div class="road" style="left: 40%; top: 15%; width: 5%; height: 30%;"></div>
+        <div class="road" style="left: 40%; top: 75%; width: 10%; height: 10%;"></div>
+        <div class="road" style="left: 60%; top: 55%; width: 5%; height: 30%;"></div>
+        <div class="road" style="left: 60%; top: 15%; width: 5%; height: 30%;"></div>
+        <div class="road" style="left: 80%; top: 55%; width: 5%; height: 30%;"></div>
+        <div class="road" style="left: 80%; top: 15%; width: 5%; height: 30%;"></div>
+        <div class="road" style="left: 75%; top: 75%; width: 5%; height: 10%;"></div>
+
+        <div class="node zoom-link" data-url="https://google.com" style="top: 10%; left: 39.6%;">📐</div>
+        <div class="node zoom-link" data-url="https://google.com" style="top: 10%; left: 19.6%;">⚽</div>
+        <div class="node zoom-link" data-url="https://google.com" style="top: 10%; left: 79.6%;">🧪</div>
+        <div class="node zoom-link" data-url="https://google.com" style="top: 74%; left: 19.6%;">🏺</div>
+        <div class="node zoom-link" data-url="https://google.com" style="top: 73%; left: 46%;">🎸</div>
+        <div class="node zoom-link" data-url="https://google.com" style="top: 73%; left: 73%;">🇬🇧</div>
+        <div class="node zoom-link" data-url="https://google.com" style="top: 74%; left: 59.8%;">🎨</div>
+        <div class="node zoom-link" data-url="https://google.com" style="top: 10%; left: 59.6%;">✍️</div>
+
+        <div id="player">
+            <div class="head"></div>
+            <div class="body"></div>
+        </div>
+        <div class="path-text" style="top: 47.5%; left: 9%;">← Ausgang</div>
+
+
+    </div>
+    <div id="player"> </div>
+
+
+    <script>
+        const player = document.getElementById('player');
+        const viewport = document.getElementById('game-viewport');
+        const roads = document.querySelectorAll('.road');
+        const nodes = document.querySelectorAll('.node');
+
+        let pX = 65;
+        let pY = window.innerHeight / 2 - 50;
+        let isDragging = false;
+
+        function update(x, y) {
+            let onRoad = false;
+            const cx = x + 20;
+            const cy = y + 30;
+
+            roads.forEach(r => {
+                if (cx >= r.offsetLeft && cx <= r.offsetLeft + r.offsetWidth &&
+                    cy >= r.offsetTop && cy <= r.offsetTop + r.offsetHeight) {
+                    onRoad = true;
+                }
+            });
+
+            if (onRoad) {
+                pX = x;
+                pY = y;
+                player.style.left = pX + 'px';
+                player.style.top = pY + 'px';
+
+                nodes.forEach(node => {
+                    if (cx >= node.offsetLeft && cx <= node.offsetLeft + node.offsetWidth &&
+                        cy >= node.offsetTop && cy <= node.offsetTop + node.offsetHeight) {
+
+                        node.classList.add('active');
+
+                        // NEU: Löst den Zoom-Effekt aus, statt sofort zu springen
+                        const url = node.getAttribute('data-url');
+                        if (url && !document.body.classList.contains('zooming')) {
+                            triggerZoom(node, url);
+                        }
+
+                    } else {
+                        node.classList.remove('active');
+                    }
+                });
+            }
+        }
+        function triggerZoom(targetNode, targetUrl) {
+            document.body.classList.add('zooming');
+            const rect = targetNode.getBoundingClientRect();
+            const x = rect.left + rect.width / 2;
+            const y = rect.top + rect.height / 2;
+            const scale = 8;
+
+            document.body.style.transform = `translate(${window.innerWidth / 2 - x * scale}px, ${window.innerHeight / 2 - y * scale}px) scale(${scale})`;
+
+            setTimeout(() => {
+                window.location.href = targetUrl;
+            }, 300);
+        }
+
+        viewport.addEventListener('mousedown', () => isDragging = true);
+        window.addEventListener('mouseup', () => isDragging = false);
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            update(e.clientX - 20, e.clientY - 30);
+        });
+
+        window.addEventListener('keydown', (e) => {
+            const speed = 15;
+            if (e.key === 'ArrowUp') update(pX, pY - speed);
+            if (e.key === 'ArrowDown') update(pX, pY + speed);
+            if (e.key === 'ArrowLeft') update(pX - speed, pY);
+            if (e.key === 'ArrowRight') update(pX + speed, pY);
+            // Enter-Logik hier entfernt, da sie nun in update() integriert ist
+        });
+
+        const overlay = document.getElementById('overlay');
+        const removeOverlay = () => overlay.style.display = 'none';
+        window.addEventListener('keydown', removeOverlay, { once: true });
+        window.addEventListener('click', removeOverlay, { once: true });
+
+        update(pX, pY);
+
+        function checkDoorCollision() {
+            const doors = document.querySelectorAll('.door');
+            const playerRect = player.getBoundingClientRect();
+
+            doors.forEach(door => {
+                const doorRect = door.getBoundingClientRect();
+                const isColliding = !(
+                    playerRect.right < doorRect.left ||
+                    playerRect.left > doorRect.right ||
+                    playerRect.bottom < doorRect.top ||
+                    playerRect.top > doorRect.bottom
+                );
+
+                if (isColliding) {
+                    window.location.href = "index.html";
+                }
+            });
+        }
+
+        function gameLoop() {
+            checkDoorCollision();
+            requestAnimationFrame(gameLoop);
+        }
+        gameLoop();
+
+
+        document.addEventListener('click', function (e) {
+            const link = e.target.closest('.zoom-link');
+            if (!link) return;
+
+            e.preventDefault();
+            const targetUrl = link.href;
+
+            const x = e.clientX;
+            const y = e.clientY;
+            const scale = 8; // Höherer Zoom für besseren Effekt
+
+            document.body.style.transform = `translate(${x - x * scale}px, ${y - y * scale}px) scale(${scale})`;
+            document.body.classList.add('zoom-out');
+
+            setTimeout(() => {
+                window.location.href = targetUrl;
+            }, 800);
+        });
+    </script>
+</body>
+
+</html>
