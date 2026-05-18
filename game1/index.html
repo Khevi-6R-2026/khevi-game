@@ -1,1 +1,214 @@
+---
+layout: game-layout1
+title: Hauptstädte Quizz
+author: 6R 2026
+description: Dir werden Hauptstädte gezeigt und du musst wissen zu welchem Land es gehört
+---
+
+<section class="game-instructions">
+  <h2>Anleitung</h2>
+  <ul>
+    <li>Es werden Bilder von europäischen Hauptstädten angezeigt</li>
+    <li>Wähle das richtige Land aus</li>
+    <li>Sammle Punkte für jede richtige Antwort!</li>
+  </ul>
+</section>
+
+<div id="quiz-container" class="quiz-container">
+  <div id="city-image-container" class="city-image-container">
+    <img id="cityImage" src="" alt="Stadt" class="city-image">
+  </div>
+  
+  <div id="answers-container" class="answers-container">
+    <button class="answer-btn" data-index="0"></button>
+    <button class="answer-btn" data-index="1"></button>
+    <button class="answer-btn" data-index="2"></button>
+    <button class="answer-btn" data-index="3"></button>
+  </div>
+
+  <div id="feedback" class="feedback"></div>
+</div>
+
+<script>
+  class CapitalQuiz extends Game {
+    constructor() {
+      super();
+      this.cities = [
+        {
+          city: 'Paris',
+          country: 'Frankreich',
+          image: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400&h=300&fit=crop'
+        },
+        {
+          city: 'Berlin',
+          country: 'Deutschland',
+          image: 'https://images.unsplash.com/photo-1524730035554-55b379e44f0d?w=400&h=300&fit=crop'
+        },
+        {
+          city: 'Rom',
+          country: 'Italien',
+          image: 'https://images.unsplash.com/photo-1552832860-cfaf2917a5db?w=400&h=300&fit=crop'
+        },
+        {
+          city: 'Madrid',
+          country: 'Spanien',
+          image: 'https://images.unsplash.com/photo-1513622470322-b8c934dfd2db?w=400&h=300&fit=crop'
+        },
+        {
+          city: 'Amsterdam',
+          country: 'Niederlande',
+          image: 'https://images.unsplash.com/photo-1459745677917-06ef22fe01b1?w=400&h=300&fit=crop'
+        },
+        {
+          city: 'Wien',
+          country: 'Österreich',
+          image: 'https://images.unsplash.com/photo-1516691696908-4b09f4dc42ca?w=400&h=300&fit=crop'
+        }
+      ];
+
+      this.currentQuestionIndex = 0;
+      this.currentQuestion = null;
+      this.answered = false;
+      this.setupAnswerButtons();
+    }
+
+    setupAnswerButtons() {
+      const buttons = document.querySelectorAll('.answer-btn');
+      buttons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          if (!this.answered) {
+            this.checkAnswer(parseInt(e.target.dataset.index));
+          }
+        });
+      });
+    }
+
+    start() {
+      this.score = 0;
+      this.level = 1;
+      this.currentQuestionIndex = 0;
+      this.isRunning = true;
+      this.loadQuestion();
+      this.updateUI();
+    }
+
+    loadQuestion() {
+      if (this.currentQuestionIndex >= 3) {
+        this.endGame();
+        return;
+      }
+
+      this.answered = false;
+      const cityIndex = this.getRandomCityIndex();
+      this.currentQuestion = {
+        correctCity: this.cities[cityIndex],
+        options: this.getRandomOptions(cityIndex)
+      };
+
+      this.displayQuestion();
+      this.clearFeedback();
+    }
+
+    getRandomCityIndex() {
+      return Math.floor(Math.random() * this.cities.length);
+    }
+
+    getRandomOptions(correctIndex) {
+      const options = [this.cities[correctIndex]];
+      const indices = [correctIndex];
+
+      while (options.length < 4) {
+        const randomIndex = this.getRandomCityIndex();
+        if (!indices.includes(randomIndex)) {
+          options.push(this.cities[randomIndex]);
+          indices.push(randomIndex);
+        }
+      }
+
+      return this.shuffleArray(options);
+    }
+
+    shuffleArray(array) {
+      const shuffled = [...array];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    }
+
+    displayQuestion() {
+      const img = document.getElementById('cityImage');
+      img.src = this.currentQuestion.correctCity.image;
+      img.alt = this.currentQuestion.correctCity.city;
+
+      const buttons = document.querySelectorAll('.answer-btn');
+      buttons.forEach((btn, index) => {
+        btn.textContent = this.currentQuestion.options[index].country;
+        btn.dataset.country = this.currentQuestion.options[index].country;
+        btn.classList.remove('correct', 'incorrect');
+      });
+    }
+
+    checkAnswer(buttonIndex) {
+      this.answered = true;
+      const selectedCountry = this.currentQuestion.options[buttonIndex].country;
+      const correctCountry = this.currentQuestion.correctCity.country;
+      const buttons = document.querySelectorAll('.answer-btn');
+
+      if (selectedCountry === correctCountry) {
+        this.score += 10;
+        buttons[buttonIndex].classList.add('correct');
+        this.showFeedback('✓ Richtig!', true);
+      } else {
+        buttons[buttonIndex].classList.add('incorrect');
+        this.showFeedback('✗ Falsch! Richtig: ' + correctCountry, false);
+        // Zeige die richtige Antwort
+        buttons.forEach((btn, idx) => {
+          if (btn.dataset.country === correctCountry) {
+            btn.classList.add('correct');
+          }
+        });
+      }
+
+      this.updateUI();
+      setTimeout(() => this.nextQuestion(), 2000);
+    }
+
+    nextQuestion() {
+      this.currentQuestionIndex++;
+      this.loadQuestion();
+    }
+
+    endGame() {
+      this.isRunning = false;
+      this.showFeedback('Spiel vorbei! Dein Score: ' + this.score, true);
+      const buttons = document.querySelectorAll('.answer-btn');
+      buttons.forEach(btn => btn.disabled = true);
+    }
+
+    showFeedback(message, isCorrect) {
+      const feedback = document.getElementById('feedback');
+      feedback.textContent = message;
+      feedback.className = 'feedback ' + (isCorrect ? 'feedback-correct' : 'feedback-incorrect');
+      feedback.style.display = 'block';
+    }
+
+    clearFeedback() {
+      const feedback = document.getElementById('feedback');
+      feedback.style.display = 'none';
+    }
+
+    update() {
+      // Logik läuft über Event-Listener der Buttons
+    }
+
+    draw() {
+      // Canvas-Rendering nicht nötig für dieses Quiz
+    }
+  }
+
+  // Initialisiere das Spiel
+  const game = new CapitalQuiz();
+</script>
 
