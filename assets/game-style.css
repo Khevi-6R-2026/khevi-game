@@ -116,3 +116,119 @@
   margin: 8px 0;
   color: #555;
 }
+
+/* Quiz Styles */
+.quiz-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+.city-image-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  max-width: 500px;
+  height: 350px;
+  background-color: #f0f0f0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.city-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.answers-container {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+  width: 100%;
+  max-width: 500px;
+}
+
+.answer-btn {
+  padding: 20px;
+  font-size: 1.1em;
+  font-weight: bold;
+  border: 2px solid #007bff;
+  border-radius: 8px;
+  background-color: white;
+  color: #007bff;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-height: 60px;
+}
+
+.answer-btn:hover:not(:disabled) {
+  background-color: #007bff;
+  color: white;
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.answer-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.answer-btn.correct {
+  background-color: #28a745;
+  border-color: #28a745;
+  color: white;
+}
+
+.answer-btn.incorrect {
+  background-color: #dc3545;
+  border-color: #dc3545;
+  color: white;
+}
+
+.feedback {
+  display: none;
+  width: 100%;
+  max-width: 500px;
+  padding: 15px;
+  text-align: center;
+  font-size: 1.2em;
+  font-weight: bold;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.feedback-correct {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.feedback-incorrect {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+@media (max-width: 600px) {
+  .answers-container {
+    grid-template-columns: 1fr;
+  }
+
+  .answer-btn {
+    padding: 15px;
+    font-size: 1em;
+    min-height: 50px;
+  }
+
+  .city-image-container {
+    height: 250px;
+  }
+}
