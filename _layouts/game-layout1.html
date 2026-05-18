@@ -77,6 +77,9 @@
         this.currentQuestion = null;
         this.answered = false;
         
+        // Kennzeichne Container als Quiz-Spiel
+        document.querySelector('.game-container').classList.add('is-quiz');
+        
         // Setup Quiz-spezifische Event-Listener
         const buttons = document.querySelectorAll('.answer-btn');
         buttons.forEach(btn => {
@@ -114,6 +117,15 @@
         if (this.currentQuestion.image) {
           img.src = this.currentQuestion.image;
           img.alt = this.currentQuestion.question || '';
+        }
+
+        // Zeige Lizenzinformation wenn vorhanden
+        if (this.currentQuestion.credit) {
+          const credit = this.currentQuestion.credit;
+          document.getElementById('credit-title').textContent = credit.title;
+          document.getElementById('credit-source').href = credit.source;
+          document.getElementById('credit-source').textContent = credit.sourceText;
+          document.getElementById('credit-license').textContent = credit.license;
         }
 
         const buttons = document.querySelectorAll('.answer-btn');

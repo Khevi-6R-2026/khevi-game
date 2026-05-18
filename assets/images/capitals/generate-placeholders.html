@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Placeholder Bilder Generator</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    .image { margin: 10px; }
+    canvas { border: 1px solid #ddd; margin: 5px; }
+    a { display: inline-block; margin: 5px 0; padding: 8px 15px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Placeholder Generator für Hauptstädte</h1>
+  <p>Klicke auf "Download" um die Bilder zu speichern.</p>
+  
+  <div class="image">
+    <h3>Paris</h3>
+    <canvas id="paris" width="400" height="300"></canvas>
+    <br>
+    <a href="#" onclick="downloadCanvas('paris', 'paris.png')">Download paris.png</a>
+  </div>
+
+  <div class="image">
+    <h3>Berlin</h3>
+    <canvas id="berlin" width="400" height="300"></canvas>
+    <br>
+    <a href="#" onclick="downloadCanvas('berlin', 'berlin.png')">Download berlin.png</a>
+  </div>
+
+  <div class="image">
+    <h3>Rom</h3>
+    <canvas id="rom" width="400" height="300"></canvas>
+    <br>
+    <a href="#" onclick="downloadCanvas('rom', 'rom.png')">Download rom.png</a>
+  </div>
+
+  <div class="image">
+    <h3>Madrid</h3>
+    <canvas id="madrid" width="400" height="300"></canvas>
+    <br>
+    <a href="#" onclick="downloadCanvas('madrid', 'madrid.png')">Download madrid.png</a>
+  </div>
+
+  <div class="image">
+    <h3>Amsterdam</h3>
+    <canvas id="amsterdam" width="400" height="300"></canvas>
+    <br>
+    <a href="#" onclick="downloadCanvas('amsterdam', 'amsterdam.png')">Download amsterdam.png</a>
+  </div>
+
+  <div class="image">
+    <h3>Wien</h3>
+    <canvas id="wien" width="400" height="300"></canvas>
+    <br>
+    <a href="#" onclick="downloadCanvas('wien', 'wien.png')">Download wien.png</a>
+  </div>
+
+  <script>
+    function drawCity(canvasId, cityName, color, emoji) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = canvas.getContext('2d');
+      
+      // Gradient background
+      const gradient = ctx.createLinearGradient(0, 0, 400, 300);
+      gradient.addColorStop(0, color);
+      gradient.addColorStop(1, '#ffffff');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 400, 300);
+      
+      // Dekoration
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.beginPath();
+      ctx.arc(350, 50, 80, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.beginPath();
+      ctx.arc(50, 250, 60, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Text
+      ctx.font = 'bold 48px Arial';
+      ctx.fillStyle = '#333';
+      ctx.textAlign = 'center';
+      ctx.fillText(emoji, 200, 120);
+      
+      ctx.font = 'bold 32px Arial';
+      ctx.fillText(cityName, 200, 180);
+      
+      ctx.font = '16px Arial';
+      ctx.fillStyle = '#666';
+      ctx.fillText('Hauptstadt Quiz', 200, 260);
+    }
+    
+    drawCity('paris', 'Paris', '#4a90e2');
+    drawCity('berlin', 'Berlin', '#50c878');
+    drawCity('rom', 'Rom', '#ffd700');
+    drawCity('madrid', 'Madrid', '#ff6b6b');
+    drawCity('amsterdam', 'Amsterdam', '#00bcd4');
+    drawCity('wien', 'Wien', '#9c27b0');
+    
+    function downloadCanvas(canvasId, filename) {
+      const canvas = document.getElementById(canvasId);
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL();
+      link.click();
+    }
+  </script>
+</body>
+</html>

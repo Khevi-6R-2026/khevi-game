@@ -17,6 +17,13 @@ description: Dir werden Hauptstädte gezeigt und du musst wissen zu welchem Land
 <div id="quiz-container" class="quiz-container">
   <div id="city-image-container" class="city-image-container">
     <img id="cityImage" src="" alt="Stadt" class="city-image">
+    <div id="image-credit" class="image-credit">
+      <small>
+        Bild: <span id="credit-title"></span><br>
+        Quelle: <a id="credit-source" href="" target="_blank"></a><br>
+        Lizenz: <span id="credit-license"></span>
+      </small>
+    </div>
   </div>
   
   <div id="answers-container" class="answers-container">
@@ -30,25 +37,43 @@ description: Dir werden Hauptstädte gezeigt und du musst wissen zu welchem Land
 </div>
 
 <script>
-  // Spielkonfiguration: Hauptstädte-Quiz
+  // Spielkonfiguration: Hauptstädte-Quiz mit Wikimedia Commons Bildern
   window.gameConfig = {
     type: 'quiz',
     questions: [
       {
         question: 'Hauptstadt von Frankreich',
-        image: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400&h=300&fit=crop',
+        image: '/assets/images/wikimedia/paris.jpg'
+        credit: {
+          title: 'Eiffel Tower, Paris',
+          source: 'https://commons.wikimedia.org/wiki/File:Paris_-_Eiffel_Tower.jpg',
+          sourceText: 'Wikimedia Commons',
+          license: 'CC BY-SA 3.0'
+        },
         answers: ['Frankreich', 'Deutschland', 'Italien', 'Spanien'],
         correct: 'Frankreich'
       },
       {
         question: 'Hauptstadt von Deutschland',
-        image: 'https://images.unsplash.com/photo-1524730035554-55b379e44f0d?w=400&h=300&fit=crop',
+        image: '/assets/images/wikimedia/reichstag.jpg',
+        credit: {
+          title: 'Reichstag, Berlin',
+          source: 'https://commons.wikimedia.org/wiki/File:Berlin_Reichstag_building.jpg',
+          sourceText: 'Wikimedia Commons',
+          license: 'CC BY-SA 3.0'
+        },
         answers: ['Frankreich', 'Deutschland', 'Italien', 'Österreich'],
         correct: 'Deutschland'
       },
       {
         question: 'Hauptstadt von Italien',
-        image: 'https://images.unsplash.com/photo-1552832860-cfaf2917a5db?w=400&h=300&fit=crop',
+        image: '/assets/images/wikimedia/colosseum.jpg',
+        credit: {
+          title: 'Colosseum, Rom',
+          source: 'https://commons.wikimedia.org/wiki/File:Colosseum_2007-11-12.jpg',
+          sourceText: 'Wikimedia Commons',
+          license: 'CC BY-SA 2.0'
+        },
         answers: ['Spanien', 'Italien', 'Niederlande', 'Österreich'],
         correct: 'Italien'
       }

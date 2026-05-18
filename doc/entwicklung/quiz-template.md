@@ -51,13 +51,13 @@ description: Kurze Beschreibung
     questions: [
       {
         question: 'Deine Frage hier',
-        image: 'https://example.com/bild.jpg',
+        image: '/assets/images/capitals/paris.jpg',  // ← LOKALES Bild!
         answers: ['Antwort 1', 'Antwort 2', 'Antwort 3', 'Antwort 4'],
         correct: 'Antwort 1'
       },
       {
         question: 'Zweite Frage',
-        image: 'https://example.com/bild2.jpg',
+        image: '/assets/images/capitals/berlin.jpg',  // ← LOKALES Bild!
         answers: ['Option A', 'Option B', 'Option C', 'Option D'],
         correct: 'Option C'
       }
@@ -88,14 +88,26 @@ window.gameConfig = {
 }
 ```
 
-## 📷 Bilder nutzen
+## 📷 Bilder nutzen (LOKAL!)
 
-- Nutze kostenlose Bildseiten wie:
-  - `unsplash.com` (Natur, Architektur, etc.)
-  - `pexels.com` (kostenloses Bildarchiv)
-  - `pixabay.com` (vielfältig)
+⚠️ **WICHTIG:** Verwende LOKALE Bilder, nicht externe URLs!
 
-- Bildformat URL: `https://images.unsplash.com/photo-ID?w=400&h=300&fit=crop`
+**Warum?**
+- Externe URLs können CORS-Fehler verursachen
+- Bilder laden schneller von lokal
+- Funktioniert auch offline
+
+**Pfad-Format:**
+```javascript
+image: '/assets/images/capitals/paris.jpg'  // ← Lokales Bild!
+```
+
+**Wie Bilder speichern?**
+1. Bilder von [unsplash.com](https://unsplash.com) herunterladen
+2. Speichern unter: `assets/images/capitals/paris.jpg`
+3. Im Config den Pfad `/assets/images/capitals/` nutzen
+
+Siehe dazu: [Bilder herunterladen Anleitung](./bilder-hinzufuegen.md)
 
 ## 💡 Tipps
 
