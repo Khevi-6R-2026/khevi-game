@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🌍 Hauptstädte Quiz</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&display=swap');
+    
+    body {
+      font-family: 'Poppins', sans-serif;
+    }
+    
+    .kahoot-bg {
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    }
+    
+    .answer-btn {
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .answer-btn:hover {
+      transform: scale(1.05) translateY(-4px);
+      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    }
+    
+    .correct {
+      background-color: #22c55e !important;
+      color: white;
+      animation: pop 0.4s;
+    }
+    
+    .wrong {
+      background-color: #ef4444 !important;
+      color: white;
+    }
+    
+    @keyframes pop {
+      0% { transform: scale(0.8); }
+      50% { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+    
+    .question-card {
+      animation: fadeIn 0.5s;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="bg-gray-950 text-white min-h-screen kahoot-bg flex items-center justify-center">
+  <div class="max-w-2xl w-full mx-auto p-6">
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="text-center py-20">
+      <div class="text-8xl mb-6">🌍</div>
+      <h1 class="text-6xl font-bold mb-4 tracking-tight">HAUPTSTÄDTE<br>QUIZ</h1>
+      <p class="text-xl text-indigo-200 mb-12">Teste dein Wissen über die Hauptstädte der Welt!</p>
+      <button onclick="startQuiz()" 
+              class="bg-white text-indigo-700 hover:bg-indigo-100 font-bold text-2xl px-16 py-8 rounded-3xl shadow-xl transition-all">
+        <i class="fas fa-play mr-3"></i> JETZT STARTEN
+      </button>
+      <p class="text-sm text-indigo-300 mt-10">10 Fragen • Einzelspieler</p>
+    </div>
+
+    <!-- Quiz Screen -->
+    <div id="quiz-screen" class="hidden">
+      <!-- Header -->
+      <div class="flex justify-between items-center mb-8">
+        <div class="flex items-center gap-4">
+          <div id="question-number" class="bg-white/20 text-white px-5 py-2 rounded-2xl font-bold text-xl"></div>
+          <div class="text-indigo-200">von 10</div>
+        </div>
+        <div id="timer" class="bg-white/20 text-white px-6 py-2 rounded-2xl font-mono text-2xl font-bold">30</div>
+        <div class="flex items-center gap-2 text-yellow-400">
+          <i class="fas fa-star"></i>
+          <span id="score" class="font-bold text-2xl">0</span>
+        </div>
+      </div>
+
+      <!-- Question -->
+      <div class="bg-white/10 backdrop-blur-xl rounded-3xl p-10 question-card">
+        <h2 id="question-text" class="text-3xl font-bold text-center leading-tight min-h-[120px] flex items-center justify-center"></h2>
+      </div>
+
+      <!-- Answers -->
+      <div id="answers" class="grid grid-cols-2 gap-4 mt-10"></div>
+
+      <!-- Feedback -->
+      <div id="feedback" class="hidden mt-8 text-center text-2xl font-bold"></div>
+    </div>
+
+    <!-- End Screen -->
+    <div id="end-screen" class="hidden text-center py-12">
+      <div id="trophy" class="text-9xl mb-6">🏆</div>
+      <h2 class="text-5xl font-bold mb-2">Quiz beendet!</h2>
+      <p class="text-3xl text-indigo-200 mb-8">Dein Ergebnis</p>
+      
+      <div class="bg-white/10 backdrop-blur-xl rounded-3xl p-12 mb-10">
+        <div id="final-score" class="text-8xl font-bold text-yellow-400 mb-2">0 / 10</div>
+        <div id="percentage" class="text-4xl text-white/70"></div>
+      </div>
+
+      <button onclick="restartQuiz()" 
+              class="bg-white text-indigo-700 hover:bg-indigo-100 font-bold text-2xl px-14 py-6 rounded-3xl shadow-xl">
+        <i class="fas fa-redo mr-3"></i> Nochmal spielen
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const questions = [
+      {
+        question: "Wie heißt die Hauptstadt von Frankreich?",
+        answers: ["Paris", "Madrid", "Rom", "Berlin"],
+        correct: 0
+      },
+      {
+        question: "Welche Stadt ist die Hauptstadt von Deutschland?",
+        answers: ["München", "Berlin", "Hamburg", "Köln"],
+        correct: 1
+      },
+      {
+        question: "Wie heißt die Hauptstadt von Japan?",
+        answers: ["Seoul", "Peking", "Tokyo", "Bangkok"],
+        correct: 2
+      },
+      {
+        question: "Welche Stadt ist die Hauptstadt von Australien?",
+        answers: ["Sydney", "Melbourne", "Canberra", "Brisbane"],
+        correct: 2
+      },
+      {
+        question: "Wie heißt die Hauptstadt von Brasilien?",
+        answers: ["Rio de Janeiro", "São Paulo", "Brasília", "Salvador"],
+        correct: 2
+      },
+      {
+        question: "Welche Stadt ist die Hauptstadt von Ägypten?",
+        answers: ["Kairo", "Alexandria", "Luxor", "Gizeh"],
+        correct: 0
+      },
+      {
+        question: "Wie heißt die Hauptstadt von Indien?",
+        answers: ["Mumbai", "Neu-Delhi", "Kolkata", "Bangalore"],
+        correct: 1
+      },
+      {
+        question: "Welche Stadt ist die Hauptstadt von Russland?",
+        answers: ["St. Petersburg", "Moskau", "Nowosibirsk", "Jekaterinburg"],
+        correct: 1
+      },
+      {
+        question: "Wie heißt die Hauptstadt der USA?",
+        answers: ["New York", "Los Angeles", "Washington, D.C.", "Chicago"],
+        correct: 2
+      },
+      {
+        question: "Welche Stadt ist die Hauptstadt von China?",
+        answers: ["Shanghai", "Hongkong", "Peking", "Guangzhou"],
+        correct: 2
+      }
+    ];
+
+    let currentQuestion = 0;
+    let score = 0;
+    let timerInterval;
+    let timeLeft = 30;
+    let selectedAnswer = null;
+
+    function startQuiz() {
+      document.getElementById('start-screen').classList.add('hidden');
+      document.getElementById('quiz-screen').classList.remove('hidden');
+      currentQuestion = 0;
+      score = 0;
+      loadQuestion();
+    }
+
+    function loadQuestion() {
+      if (currentQuestion >= questions.length) {
+        endQuiz();
+        return;
+      }
+
+      resetTimer();
+      selectedAnswer = null;
+
+      const q = questions[currentQuestion];
+      
+      // Update header
+      document.getElementById('question-number').textContent = currentQuestion + 1;
+      document.getElementById('score').textContent = score;
+
+      // Question text
+      document.getElementById('question-text').textContent = q.question;
+
+      // Answers
+      const answersDiv = document.getElementById('answers');
+      answersDiv.innerHTML = '';
+
+      q.answers.forEach((answer, index) => {
+        const btn = document.createElement('button');
+        btn.className = `answer-btn bg-white/10 hover:bg-white/20 text-white text-left p-6 rounded-3xl text-2xl font-medium flex items-center gap-4`;
+        btn.innerHTML = `
+          <span class="inline-flex items-center justify-center w-10 h-10 bg-white/20 rounded-2xl text-xl font-bold">${String.fromCharCode(65 + index)}</span>
+          <span>${answer}</span>
+        `;
+        btn.onclick = () => selectAnswer(index, btn);
+        answersDiv.appendChild(btn);
+      });
+
+      document.getElementById('feedback').classList.add('hidden');
+    }
+
+    function selectAnswer(index, button) {
+      if (selectedAnswer !== null) return;
+      selectedAnswer = index;
+
+      const q = questions[currentQuestion];
+      const buttons = document.querySelectorAll('#answers button');
+
+      clearInterval(timerInterval);
+
+      // Mark correct and wrong
+      buttons.forEach((btn, i) => {
+        btn.disabled = true;
+        if (i === q.correct) {
+          btn.classList.add('correct');
+        }
+        if (i === index && i !== q.correct) {
+          btn.classList.add('wrong');
+        }
+      });
+
+      if (index === q.correct) {
+        score++;
+        document.getElementById('score').textContent = score;
+        document.getElementById('feedback').innerHTML = `✅ Richtig!`;
+        document.getElementById('feedback').classList.remove('hidden');
+      } else {
+        document.getElementById('feedback').innerHTML = `❌ Falsch! Die richtige Antwort war ${q.answers[q.correct]}`;
+        document.getElementById('feedback').classList.remove('hidden');
+      }
+
+      // Next question after delay
+      setTimeout(() => {
+        currentQuestion++;
+        loadQuestion();
+      }, 2200);
+    }
+
+    function resetTimer() {
+      clearInterval(timerInterval);
+      timeLeft = 25;
+      document.getElementById('timer').textContent = timeLeft;
+      document.getElementById('timer').classList.remove('text-red-400');
+
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        document.getElementById('timer').textContent = timeLeft;
+        
+        if (timeLeft <= 5) {
+          document.getElementById('timer').classList.add('text-red-400');
+        }
+        
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          timeExpired();
+        }
+      }, 1000);
+    }
+
+    function timeExpired() {
+      const buttons = document.querySelectorAll('#answers button');
+      const q = questions[currentQuestion];
+      
+      buttons.forEach((btn, i) => {
+        btn.disabled = true;
+        if (i === q.correct) btn.classList.add('correct');
+      });
+
+      document.getElementById('feedback').innerHTML = `⏰ Zeit abgelaufen!<br>Die richtige Antwort war ${q.answers[q.correct]}`;
+      document.getElementById('feedback').classList.remove('hidden');
+
+      setTimeout(() => {
+        currentQuestion++;
+        loadQuestion();
+      }, 2500);
+    }
+
+    function endQuiz() {
+      document.getElementById('quiz-screen').classList.add('hidden');
+      document.getElementById('end-screen').classList.remove('hidden');
+      
+      const percentage = Math.round((score / questions.length) * 100);
+      
+      document.getElementById('final-score').innerHTML = `${score} <span class="text-5xl text-white/60">/ 10</span>`;
+      document.getElementById('percentage').textContent = `${percentage}%`;
+      
+      // Trophy emoji based on score
+      const trophy = document.getElementById('trophy');
+      if (score >= 9) trophy.textContent = '🏆';
+      else if (score >= 7) trophy.textContent = '🥇';
+      else if (score >= 5) trophy.textContent = '🥈';
+      else trophy.textContent = '🌍';
+    }
+
+    function restartQuiz() {
+      document.getElementById('end-screen').classList.add('hidden');
+      document.getElementById('start-screen').classList.remove('hidden');
+    }
+
+    // Keyboard support (A B C D)
+    document.addEventListener('keydown', (e) => {
+      if (document.getElementById('quiz-screen').classList.contains('hidden')) return;
+      
+      const key = e.key.toUpperCase();
+      if (['A','B','C','D'].includes(key)) {
+        const index = key.charCodeAt(0) - 65;
+        const buttons = document.querySelectorAll('#answers button');
+        if (buttons[index]) {
+          buttons[index].click();
+        }
+      }
+    });
+
+    // Initialize Tailwind
+    tailwind.config = {
+      content: [],
+    };
+  </script>
+</body>
+</html>
