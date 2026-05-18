@@ -208,7 +208,9 @@ description: Dir werden Hauptstädte gezeigt und du musst wissen zu welchem Land
     }
   }
 
-  // Initialisiere das Spiel
-  const game = new CapitalQuiz();
+  // Initialisiere das Spiel nach dem Layout geladen ist
+  document.addEventListener('DOMContentLoaded', () => {
+    const game = new CapitalQuiz();
+  });
 </script>
 
