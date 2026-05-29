@@ -388,14 +388,14 @@
         <div class="road" style="left: 80%; top: 15%; width: 5%; height: 30%;"></div>
         <div class="road" style="left: 75%; top: 75%; width: 5%; height: 10%;"></div>
 
-        <div class="node zoom-link" href="game2/index.html" style="top: 10%; left: 39.6%;">BU</div>
-        <div class="node zoom-link" href="game3/index.html" style="top: 10%; left: 19.6%;">GW</div>
-        <div class="node zoom-link" href="game5/index.html" style="top: 10%; left: 79.6%;">BSP</div>
-        <div class="node zoom-link" href="game7/index.html" style="top: 74%; left: 19.6%;">M</div>
-        <div class="node zoom-link" href="game9/index.html" style="top: 73%; left: 46%;">MU</div>
-        <div class="node zoom-link" href="game13/index.html" style="top: 73%; left: 73%;">SP</div>
-        <div class="node zoom-link" href="game14/index.html" style="top: 74%; left: 59.8%;">PH</div>
-        <div class="node zoom-link" href="game15/index.html" style="top: 10%; left: 59.6%;">GPB</div>
+        <div class="node zoom-link" link-url="https://github.com/Khevi-6R-2026/khevi-game/edit/main/game2/index.html" style="top: 10%; left: 39.6%;">BU</div>
+        <div class="node zoom-link" link-url="https://github.com/Khevi-6R-2026/khevi-game/edit/main/game3/index.html" style="top: 10%; left: 19.6%;">GW</div>
+        <div class="node zoom-link" link-url="https://github.com/Khevi-6R-2026/khevi-game/edit/main/game5/index.html" style="top: 10%; left: 79.6%;">BSP</div>
+        <div class="node zoom-link" link-url="https://github.com/Khevi-6R-2026/khevi-game/edit/main/game7/index.html" style="top: 74%; left: 19.6%;">M</div>
+        <div class="node zoom-link" link-url="https://github.com/Khevi-6R-2026/khevi-game/edit/main/game9/index.html" style="top: 73%; left: 46%;">MU</div>
+        <div class="node zoom-link" link-url="https://github.com/Khevi-6R-2026/khevi-game/edit/main/game13/index.html" style="top: 73%; left: 73%;">SP</div>
+        <div class="node zoom-link" link-url="https://github.com/Khevi-6R-2026/khevi-game/edit/main/game14/index.html" style="top: 74%; left: 59.8%;">PH</div>
+        <div class="node zoom-link" link-url="https://github.com/Khevi-6R-2026/khevi-game/edit/main/game15/index.html" style="top: 10%; left: 59.6%;">GPB</div>
 
         <div id="player">
             <div class="head"></div>
@@ -443,7 +443,7 @@
                         node.classList.add('active');
 
                         // NEU: Löst den Zoom-Effekt aus, statt sofort zu springen
-                        const url = node.getAttribute('data-url');
+                        const url = node.getAttribute('link-url');
                         if (url && !document.body.classList.contains('zooming')) {
                             triggerZoom(node, url);
                         }
