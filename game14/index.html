@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Parkour 3D</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; overflow: hidden; font-family: monospace; }
+canvas { display: block; }
+#hud {
+  position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 12px; pointer-events: none; z-index: 10;
+}
+.hb {
+  background: rgba(0,0,0,.6); border: 1px solid rgba(255,255,255,.15);
+  padding: 5px 14px; border-radius: 8px; color: #fff; font-size: 13px;
+  backdrop-filter: blur(6px);
+}
+.hb b { color: #7dd3fc; }
+#msg {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  font-size: 28px; font-weight: bold; color: #fff;
+  text-shadow: 0 0 20px #38bdf8; pointer-events: none; z-index: 20;
+  text-align: center; opacity: 0; transition: opacity .3s;
+}
+#kb {
+  position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+  color: rgba(255,255,255,.45); font-size: 12px; pointer-events: none; z-index: 10;
+}
+#rbtn {
+  position: fixed; bottom: 56px; left: 50%; transform: translateX(-50%);
+  background: #1d4ed8; border: none; color: #fff; padding: 10px 28px;
+  border-radius: 8px; font-size: 14px; cursor: pointer; display: none;
+  z-index: 10; font-family: monospace;
+}
+#rbtn:hover { background: #2563eb; }
+#crosshair {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  width: 12px; height: 12px; pointer-events: none; z-index: 10;
+}
+#crosshair::before, #crosshair::after {
+  content: ''; position: absolute; background: rgba(255,255,255,.7);
+}
+#crosshair::before { width: 2px; height: 12px; left: 5px; top: 0; }
+#crosshair::after  { width: 12px; height: 2px; left: 0; top: 5px; }
+#info {
+  position: fixed; top: 14px; right: 14px; color: rgba(255,255,255,.35);
+  font-size: 11px; pointer-events: none; z-index: 10; text-align: right;
+}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="hb">Zeit: <b id="ti">0.0s</b></div>
+  <div class="hb">CP: <b id="cp">0/6</b></div>
+  <div class="hb">Tode: <b id="dd">0</b></div>
+</div>
+<div id="msg"></div>
+<div id="crosshair"></div>
+<div id="info">Klick → Maus sperren<br>ESC → freigeben</div>
+<div id="kb">WASD = Bewegen &nbsp;|&nbsp; SPACE = Springen (2×) &nbsp;|&nbsp; Maus = Kamera</div>
+<button id="rbtn" onclick="restart()">↺ Neu starten</button>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ── Cannon.js inline (minified subset we need) ──────────────────────────────
+// We'll use a simple custom physics since CDN Cannon may not load reliably.
+// Instead: Ammo.js-style AABB physics written inline.
+
+// ── Scene Setup ──────────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+
+window.addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+});
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a1f);
+scene.fog = new THREE.FogExp2(0x0a0a1f, 0.018);
+
+const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 200);
+
+// ── Lighting ─────────────────────────────────────────────────────────────────
+const ambient = new THREE.AmbientLight(0x334466, 0.8);
+scene.add(ambient);
+
+const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+sun.position.set(20, 40, 10);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near = 0.5;
+sun.shadow.camera.far = 150;
+sun.shadow.camera.left = -60;
+sun.shadow.camera.right = 60;
+sun.shadow.camera.top = 60;
+sun.shadow.camera.bottom = -60;
+scene.add(sun);
+
+const fill = new THREE.DirectionalLight(0x4488ff, 0.4);
+fill.position.set(-10, 10, -10);
+scene.add(fill);
+
+// Point lights for atmosphere
+[
+  [0, 2, 0, 0x4466ff],
+  [25, 8, -3, 0xff6644],
+  [50, 15, 5, 0x44ff88],
+  [70, 22, 8, 0xffdd44],
+].forEach(([x,y,z,c]) => {
+  const pl = new THREE.PointLight(c, 1.5, 18);
+  pl.position.set(x,y,z);
+  scene.add(pl);
+});
+
+// ── Materials ────────────────────────────────────────────────────────────────
+function mat(color, rough=0.8, metal=0.1, emit=0x000000, emitI=0) {
+  return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal,
+    emissive: emit, emissiveIntensity: emitI });
+}
+const MATS = {
+  n:   mat(0x3a6abf, 0.85, 0.1),
+  m:   mat(0xcc7722, 0.7, 0.2),
+  b:   mat(0x22bb44, 0.6, 0.05, 0x22bb44, 0.3),
+  i:   mat(0xaaddff, 0.1, 0.05),
+  l:   mat(0xdd2200, 0.9, 0.0, 0xff3300, 0.6),
+  g:   mat(0xddcc11, 0.5, 0.3, 0xffdd00, 0.5),
+  cp:  mat(0x9933ff, 0.6, 0.1, 0xaa44ff, 0.8),
+  cpd: mat(0x22dd66, 0.6, 0.1, 0x33ff77, 0.8),
+  player: mat(0xff6622, 0.7, 0.1),
+  head: mat(0xffaa66, 0.8, 0.0),
+};
+
+// ── Platform data ─────────────────────────────────────────────────────────────
+const platDefs = [
+  // [x, y, z, w, h, d, type, moveX, moveY, moveZ, speed, phase]
+  [0,  0,  0,   7, 1, 7,  'n'],
+  [5,  0.5,-3,  3, .5, 3, 'n'],
+  [8,  1.2,-5,  2.5,.5,2.5,'n'],
+  [11, 2,  -5,  2, .5, 2, 'm', 3,0,0,.8],
+  [14, 3,  -4,  3, .5, 3, 'n'],
+  [17, 3.5,-4,  2, .5, 2, 'i'],
+  [20, 4,  -4,  2, .5, 2, 'i'],
+  [23, 4.5,-3,  2, .5, 2, 'i'],
+  [25, 5,  -2,  3, .5, 3, 'n'],
+  [28, 5.5, 0,  2, .5, 2, 'b'],
+  [30, 9,   1,  3, .5, 3, 'n'],
+  [33, 9.5, 2,  2.5,.5,2.5,'m',0,0,5,1],
+  [36,10,   4,  2.5,.5,2.5,'m',4,0,0,1.2],
+  [40,10.5, 4,  3, .5, 3, 'n'],
+  [43,11,   3,  2, .5, 2, 'l'],
+  [45,11.5, 2,  2, .5, 2, 'l'],
+  [47,12,   3,  3, .5, 3, 'n'],
+  [50,13,   1,  1.5,.5,5, 'n'],
+  [53,14,  -1,  1.5,.5,5, 'i'],
+  [56,15,   1,  1.5,.5,5, 'm',0,2,0,1],
+  [59,16,   0,  4, .5, 4, 'n'],
+  [62,17,   2,  2, .5, 2, 'b'],
+  [64,21,   5,  2.5,.5,2.5,'m',4,0,3,1.1],
+  [67,21.5, 7,  2, .5, 2, 'n'],
+  [69,22,   8,  7,  1, 7, 'g'],
+  // scenery
+  [-3, 5,-3,  1,12,1,'n'],
+  [16, 9,-13, 1,20,1,'n'],
+  [48,18, 8,  1,6, 1,'n'],
+];
+
+const cpDefs = [
+  {x:0,  y:2,  z:0},
+  {x:14, y:5,  z:-4},
+  {x:30, y:11, z:1},
+  {x:47, y:13, z:3},
+  {x:59, y:17, z:0},
+  {x:69, y:24, z:8},
+];
+
+// ── Physics World ─────────────────────────────────────────────────────────────
+const GRAVITY = -22;
+const PLAYER_HALF = { x: 0.28, y: 0.45, z: 0.28 };
+
+let platforms = [];
+let cpMeshes = [];
+let checkpoints = [];
+let particles3d = [];
+
+let playerMesh, headMesh;
+let player = {};
+let timer = 0, deaths = 0, won = false;
+let spawnPos = { x: 0, y: 2, z: 0 };
+let cpReached = 0;
+let jmpHeld = false;
+let msgTimeout = null;
+
+// ── Build Level ───────────────────────────────────────────────────────────────
+function buildLevel() {
+  // Remove old
+  platforms.forEach(p => { scene.remove(p.mesh); });
+  cpMeshes.forEach(m => scene.remove(m));
+  platforms = []; cpMeshes = []; checkpoints = [];
+
+  const geo = new THREE.BoxGeometry(1, 1, 1);
+
+  platDefs.forEach((d, i) => {
+    const [x, y, z, w, h, dd, type, mx=0, my=0, mz=0, spd=1, phase=0] = d;
+    const m = MATS[type] || MATS.n;
+    const mesh = new THREE.Mesh(geo, m);
+    mesh.scale.set(w, h, dd);
+    mesh.position.set(x, y + h/2, z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+
+    // Emissive glow for special types
+    if (type === 'l') {
+      const pl = new THREE.PointLight(0xff3300, 1.5, 5);
+      pl.position.set(x, y + h + 1, z);
+      mesh.add(pl);
+    }
+    if (type === 'b') {
+      const pl = new THREE.PointLight(0x22ff66, 1.2, 4);
+      pl.position.set(0, 1, 0);
+      mesh.add(pl);
+    }
+
+    platforms.push({
+      mesh, type, w, h, d: dd,
+      ox: x, oy: y + h/2, oz: z,
+      mx, my, mz, spd, phase: Math.random() * Math.PI * 2,
+      cx: x, cy: y + h/2, cz: z,
+    });
+  });
+
+  // Checkpoints
+  const cpGeo = new THREE.OctahedronGeometry(0.4, 0);
+  cpDefs.forEach((c, i) => {
+    const mesh = new THREE.Mesh(cpGeo, MATS.cp.clone());
+    mesh.position.set(c.x, c.y + 0.5, c.z);
+    scene.add(mesh);
+    cpMeshes.push(mesh);
+    checkpoints.push({ ...c, done: false, mesh });
+
+    // Ring
+    const rGeo = new THREE.TorusGeometry(0.7, 0.05, 8, 24);
+    const rMat = new THREE.MeshStandardMaterial({ color: 0xaa44ff, emissive: 0xaa44ff, emissiveIntensity: 1 });
+    const ring = new THREE.Mesh(rGeo, rMat);
+    ring.position.set(c.x, c.y + 0.5, c.z);
+    ring.rotation.x = Math.PI / 2;
+    scene.add(ring);
+    cpMeshes.push(ring);
+  });
+
+  // Stars / particle field
+  const starGeo = new THREE.BufferGeometry();
+  const starPos = [];
+  for (let i = 0; i < 800; i++) {
+    starPos.push((Math.random() - 0.5) * 200, Math.random() * 80, (Math.random() - 0.5) * 200);
+  }
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+  const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, sizeAttenuation: true });
+  scene.add(new THREE.Points(starGeo, starMat));
+}
+
+// ── Player ────────────────────────────────────────────────────────────────────
+function buildPlayer() {
+  if (playerMesh) { scene.remove(playerMesh); scene.remove(headMesh); }
+  const bGeo = new THREE.BoxGeometry(0.55, 0.85, 0.55);
+  playerMesh = new THREE.Mesh(bGeo, MATS.player);
+  playerMesh.castShadow = true;
+  scene.add(playerMesh);
+  const hGeo = new THREE.BoxGeometry(0.45, 0.45, 0.45);
+  headMesh = new THREE.Mesh(hGeo, MATS.head);
+  headMesh.castShadow = true;
+  scene.add(headMesh);
+}
+
+function resetPlayer(x, y, z) {
+  player = { x, y, z, vx: 0, vy: 0, vz: 0, onGround: false, jumps: 0 };
+}
+
+// ── Spawn particles ───────────────────────────────────────────────────────────
+function spawnParticles(x, y, z, color, n = 12) {
+  const geo = new THREE.SphereGeometry(0.08, 4, 4);
+  for (let i = 0; i < n; i++) {
+    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1 }));
+    m.position.set(x, y, z);
+    scene.add(m);
+    particles3d.push({
+      mesh: m,
+      vx: (Math.random() - 0.5) * 8,
+      vy: Math.random() * 7 + 1,
+      vz: (Math.random() - 0.5) * 8,
+      life: 1,
+    });
+  }
+}
+
+// ── Input ─────────────────────────────────────────────────────────────────────
+const keys = {};
+let yaw = 0.2, pitch = 0.25;
+let locked = false;
+
+renderer.domElement.addEventListener('click', () => renderer.domElement.requestPointerLock());
+document.addEventListener('pointerlockchange', () => { locked = !!document.pointerLockElement; });
+document.addEventListener('mousemove', e => {
+  if (!locked) return;
+  yaw -= e.movementX * 0.002;
+  pitch = Math.max(-1.1, Math.min(0.85, pitch - e.movementY * 0.002));
+});
+document.addEventListener('keydown', e => { keys[e.code] = true; });
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// ── AABB collision ────────────────────────────────────────────────────────────
+function overlap(ax, ay, az, aw, ah, ad, bx, by, bz, bw, bh, bd) {
+  return Math.abs(ax - bx) < (aw + bw) / 2
+      && Math.abs(ay - by) < (ah + bh) / 2
+      && Math.abs(az - bz) < (ad + bd) / 2;
+}
+
+// ── Update ────────────────────────────────────────────────────────────────────
+function update(dt) {
+  if (won) return;
+  timer += dt;
+  document.getElementById('ti').textContent = timer.toFixed(1) + 's';
+
+  const t = timer;
+
+  // Move platforms
+  platforms.forEach(p => {
+    if (p.mx || p.my || p.mz) {
+      const nx = p.ox + Math.sin(t * p.spd + p.phase) * p.mx;
+      const ny = p.oy + Math.sin(t * p.spd * 0.7 + p.phase) * p.my;
+      const nz = p.oz + Math.sin(t * p.spd * 0.9 + p.phase) * p.mz;
+      const dvx = (nx - p.cx) / dt;
+      const dvz = (nz - p.cz) / dt;
+      p.cx = nx; p.cy = ny; p.cz = nz;
+      p.mesh.position.set(nx, ny, nz);
+      p._dvx = dvx; p._dvz = dvz;
+    } else {
+      p._dvx = 0; p._dvz = 0;
+    }
+  });
+
+  // Player input
+  const speed = 8.5;
+  let mx = 0, mz = 0;
+  if (keys['KeyW'] || keys['ArrowUp'])    { mx += Math.sin(yaw); mz += Math.cos(yaw); }
+  if (keys['KeyS'] || keys['ArrowDown'])  { mx -= Math.sin(yaw); mz -= Math.cos(yaw); }
+  if (keys['KeyA'] || keys['ArrowLeft'])  { mx += Math.cos(yaw); mz -= Math.sin(yaw); }
+  if (keys['KeyD'] || keys['ArrowRight']) { mx -= Math.cos(yaw); mz += Math.sin(yaw); }
+  const ml = Math.sqrt(mx * mx + mz * mz) || 1;
+  if (mx || mz) { mx /= ml; mz /= ml; }
+
+  // Check if on ice
+  let onIce = false;
+  if (player.onGround) {
+    platforms.forEach(p => {
+      if (p.type === 'i' && overlap(player.x, player.y, player.z, .56, .86, .56, p.cx, p.cy, p.cz, p.w, p.h, p.d))
+        onIce = true;
+    });
+  }
+
+  const acc  = player.onGround ? (onIce ? 12 : 48) : 16;
+  const fric = player.onGround ? (onIce ? 0.965 : 0.72) : 0.99;
+
+  player.vx += mx * acc * dt;
+  player.vz += mz * acc * dt;
+  const s = Math.sqrt(player.vx * player.vx + player.vz * player.vz);
+  if (s > speed) { player.vx = player.vx / s * speed; player.vz = player.vz / s * speed; }
+  player.vx *= fric;
+  player.vz *= fric;
+
+  // Jump
+  const wantJump = keys['Space'];
+  if (wantJump && !jmpHeld && (player.onGround || player.jumps < 2)) {
+    player.vy = player.jumps === 1 ? 11.5 : 9.5;
+    player.jumps++;
+    player.onGround = false;
+    jmpHeld = true;
+    spawnParticles(player.x, player.y - 0.45, player.z, 0x88aaff, 6);
+  }
+  if (!wantJump) jmpHeld = false;
+
+  // Gravity
+  player.vy += GRAVITY * dt;
+
+  player.x += player.vx * dt;
+  player.y += player.vy * dt;
+  player.z += player.vz * dt;
+
+  player.onGround = false;
+  const pw = PLAYER_HALF.x * 2, ph = PLAYER_HALF.y * 2, pd = PLAYER_HALF.z * 2;
+
+  platforms.forEach(p => {
+    if (!overlap(player.x, player.y, player.z, pw, ph, pd, p.cx, p.cy, p.cz, p.w, p.h, p.d)) return;
+    const ox = (pw + p.w) / 2 - Math.abs(player.x - p.cx);
+    const oy = (ph + p.h) / 2 - Math.abs(player.y - p.cy);
+    const oz = (pd + p.d) / 2 - Math.abs(player.z - p.cz);
+
+    if (oy < ox && oy < oz) {
+      if (player.y > p.cy) {
+        player.y = p.cy + p.h / 2 + ph / 2;
+        if (p.type === 'l') { die(); return; }
+        if (p.type === 'g') { winGame(); return; }
+        player.vy = Math.max(0, player.vy);
+        player.onGround = true; player.jumps = 0;
+        // Ride moving platform
+        player.vx += (p._dvx || 0) * 0.12;
+        player.vz += (p._dvz || 0) * 0.12;
+        if (p.type === 'b') {
+          player.vy = 17;
+          spawnParticles(player.x, player.y, player.z, 0x22ff66, 12);
+        }
+      } else {
+        player.y = p.cy - p.h / 2 - ph / 2;
+        player.vy = Math.min(0, player.vy);
+      }
+    } else if (ox < oz) {
+      player.x += player.x > p.cx ? ox : -ox;
+      player.vx *= -0.15;
+    } else {
+      player.z += player.z > p.cz ? oz : -oz;
+      player.vz *= -0.15;
+    }
+  });
+
+  if (player.y < -12) die();
+
+  // Checkpoints
+  checkpoints.forEach((c, i) => {
+    if (c.done) return;
+    if (Math.abs(player.x - c.x) < 2.5 && Math.abs(player.y - c.y) < 2.5 && Math.abs(player.z - c.z) < 2.5) {
+      c.done = true;
+      spawnPos = { x: c.x, y: c.y + 2, z: c.z };
+      cpReached = i + 1;
+      c.mesh.material = MATS.cpd;
+      spawnParticles(c.x, c.y + 1, c.z, 0xaa44ff, 20);
+      document.getElementById('cp').textContent = cpReached + '/6';
+      showMsg('✓ Checkpoint ' + cpReached + '!', '#a78bfa');
+      setTimeout(() => showMsg(''), 1300);
+    }
+  });
+
+  // Animate checkpoints
+  checkpoints.forEach((c, i) => {
+    c.mesh.rotation.y += dt * 1.5;
+    c.mesh.position.y = c.y + 0.5 + Math.sin(t * 2 + i) * 0.18;
+  });
+
+  // Particles
+  particles3d.forEach(p => {
+    p.mesh.position.x += p.vx * dt;
+    p.mesh.position.y += p.vy * dt;
+    p.mesh.position.z += p.vz * dt;
+    p.vy -= 14 * dt;
+    p.life -= dt * 1.4;
+    p.mesh.material.opacity = p.life;
+    p.mesh.scale.setScalar(p.life);
+  });
+  const dead = particles3d.filter(p => p.life <= 0);
+  dead.forEach(p => scene.remove(p.mesh));
+  particles3d = particles3d.filter(p => p.life > 0);
+
+  // Player mesh
+  playerMesh.position.set(player.x, player.y, player.z);
+  headMesh.position.set(player.x, player.y + 0.65, player.z);
+
+  // Lean player in movement direction
+  const lean = Math.sqrt(player.vx * player.vx + player.vz * player.vz) / speed;
+  if (lean > 0.05) {
+    const ang = Math.atan2(player.vx, player.vz);
+    playerMesh.rotation.y = ang;
+  }
+
+  // Camera: spring follow
+  const camDist = 6.5;
+  const eyeX = player.x - Math.sin(yaw) * camDist * Math.cos(pitch);
+  const eyeY = player.y + 2.5 + Math.sin(pitch) * camDist;
+  const eyeZ = player.z - Math.cos(yaw) * camDist * Math.cos(pitch);
+  camera.position.lerp(new THREE.Vector3(eyeX, eyeY, eyeZ), 0.15);
+  camera.lookAt(player.x, player.y + 0.5, player.z);
+
+  // Update sun to follow player
+  sun.position.set(player.x + 20, 40, player.z + 10);
+  sun.target.position.set(player.x, player.y, player.z);
+  sun.target.updateMatrixWorld();
+}
+
+// ── Die / Win ─────────────────────────────────────────────────────────────────
+function die() {
+  deaths++;
+  document.getElementById('dd').textContent = deaths;
+  spawnParticles(player.x, player.y, player.z, 0xff2211, 18);
+  showMsg('💀 Tod!', '#f87171');
+  setTimeout(() => {
+    resetPlayer(spawnPos.x, spawnPos.y, spawnPos.z);
+    showMsg('');
+  }, 700);
+}
+
+function winGame() {
+  if (won) return;
+  won = true;
+  spawnParticles(player.x, player.y + 1, player.z, 0xffdd00, 60);
+  showMsg('🏆 ZIEL! ' + timer.toFixed(1) + 's', '#fde047');
+  document.getElementById('rbtn').style.display = 'block';
+}
+
+// ── Show message ──────────────────────────────────────────────────────────────
+function showMsg(t, col) {
+  const el = document.getElementById('msg');
+  el.textContent = t; el.style.color = col || '#fff';
+  el.style.opacity = t ? 1 : 0;
+}
+
+// ── Restart ───────────────────────────────────────────────────────────────────
+function restart() {
+  document.getElementById('rbtn').style.display = 'none';
+  won = false; timer = 0; particles3d = []; jmpHeld = false;
+  cpReached = 0; spawnPos = { x: 0, y: 2, z: 0 };
+  buildLevel(); buildPlayer();
+  resetPlayer(0, 2, 0);
+  document.getElementById('cp').textContent = '0/6';
+  document.getElementById('dd').textContent = deaths;
+  showMsg('');
+}
+
+// ── Render loop ───────────────────────────────────────────────────────────────
+let last = 0;
+function loop(t) {
+  requestAnimationFrame(loop);
+  const dt = Math.min((t - last) / 1000, 0.05);
+  last = t;
+  update(dt);
+  renderer.render(scene, camera);
+}
+
+restart();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
