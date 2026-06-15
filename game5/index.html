@@ -1008,9 +1008,8 @@ function drawH3(){
   const horizY=H*0.54;
 
   // STANDS (left side)
-  drawStands3d2(h3ctx,W,H,horizY,vX,-8,camX,camZ,'left');
-  // STANDS (right side)
-  drawStands3d2(h3ctx,W,H,horizY,vX,8,camX,camZ,'right');
+drawStands3d2(h3ctx,W,H,horizY,vX,-8,camX,camY,camZ,'left');
+drawStands3d2(h3ctx,W,H,horizY,vX,8,camX,camY,camZ,'right');
 
   // GROUND / TRACK
   // Draw as perspective quad from near to horizon
@@ -1186,7 +1185,7 @@ function drawHurdle3d2(ctx,h,camX,camY,camZ){
   }
 }
 
-function drawStands3d2(ctx,W,H,horizY,vX,xPos,camX,camZ,side){
+function drawStands3d2(ctx,W,H,horizY,vX,xPos,camX,camY,camZ,side){
   // Multi-row stands with seat colors using projection
   const seatColors=['#cc2020','#1040a0','#c8a000','#1a6820','#580878','#c03800','#008060'];
   const rows=5,cols=12;
