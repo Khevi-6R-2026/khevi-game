@@ -522,7 +522,7 @@
             if (!link) return;
 
             e.preventDefault();
-            const targetUrl = link.href;
+           const targetUrl = link.getAttribute('link-url');
 
             const x = e.clientX;
             const y = e.clientY;
@@ -537,5 +537,6 @@
         });
     </script>
 </body>
+
 
 </html>
