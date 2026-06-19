@@ -1,376 +1,1445 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blood Runner - Anatomie Spiel</title>
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            background: #1a1a2e;
-            font-family: Arial, sans-serif;
-        }
-        
-        #game-container {
-            position: relative;
-            width: 100%;
-            max-width: 600px;
-        }
-        
-        canvas {
-            display: block;
-            margin: 0 auto;
-            background: #0f3460;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Blood Runner</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Exo+2:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#06000e;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  height:100vh; overflow:hidden;
+  font-family:'Exo 2', sans-serif;
+  touch-action:none;
+}
+#wrap {
+  position:relative;
+  display:inline-block;
+}
+canvas { display:block; }
+/* Custom cursor */
+#cur {
+  position:fixed; pointer-events:none; z-index:9999;
+  width:8px; height:8px; margin:-4px 0 0 -4px;
+  border-radius:50%;
+  background:#ff2244;
+  box-shadow:0 0 6px #ff2244;
+  transition:transform 0.08s;
+}
+</style>
 </head>
 <body>
-    <div id="game-container"></div>
+<div id="wrap"><canvas id="c"></canvas></div>
+<div id="cur"></div>
 
-    <script>
-        // ==================== PHASER CONFIG ====================
-        const config = {
-            type: Phaser.AUTO,
-            width: 400,
-            height: 600,
-            parent: 'game-container',
-            physics: {
-                default: 'arcade',
-                arcade: {
-                    gravity: { y: 0 },
-                    debug: false
-                }
-            },
-            scene: [BloodRunnerScene]
-        };
+<script>
+// ══════════════════════════════════════════════════════════════
+// SETUP
+// ══════════════════════════════════════════════════════════════
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+const cur    = document.getElementById('cur');
+const W = 440, H = 660;
+canvas.width = W; canvas.height = H;
 
-        const game = new Phaser.Game(config);
+// Custom cursor tracking
+document.addEventListener('mousemove', e => {
+  cur.style.left = e.clientX + 'px';
+  cur.style.top  = e.clientY + 'px';
+});
+canvas.addEventListener('mouseenter', () => { cur.style.display = 'block'; });
+document.addEventListener('mouseleave', () => { cur.style.display = 'none'; });
 
-        // ==================== HAUPTSPIEL-SZENE ====================
-        class BloodRunnerScene extends Phaser.Scene {
-            constructor() {
-                super('BloodRunner');
-            }
+function resize() {
+  const s = Math.min(window.innerWidth/W, window.innerHeight/H, 1.5);
+  canvas.style.width  = W*s+'px';
+  canvas.style.height = H*s+'px';
+}
+resize(); window.addEventListener('resize', resize);
 
-            create() {
-                // ===== INITIALISIERUNG =====
-                this.gameOver = false;
-                this.score = 0;
-                this.lives = 3;
-                this.speed = 4;
-                this.baseSpeed = 4;
-                this.difficulty = 0;
-                this.elapsedTime = 0;
+// ══════════════════════════════════════════════════════════════
+// CONSTANTS
+// ══════════════════════════════════════════════════════════════
+const LANES   = [90, 220, 350];
+const GY      = 500; // ground Y (player feet)
+const GRAVITY = 0.58;
+const JUMP1   = -13.5;
+const JUMP2   = -11;
 
-                // Eingabe
-                this.keys = this.input.keyboard.createCursorKeys();
-                this.wasd = this.input.keyboard.addKeys({
-                    w: Phaser.Input.Keyboard.KeyCodes.W,
-                    a: Phaser.Input.Keyboard.KeyCodes.A,
-                    s: Phaser.Input.Keyboard.KeyCodes.S,
-                    d: Phaser.Input.Keyboard.KeyCodes.D
-                });
+// ══════════════════════════════════════════════════════════════
+// CHARACTER DEFINITIONS
+// ══════════════════════════════════════════════════════════════
+const CHARS = {
+  rbc: {
+    id:'rbc', name:'Rote Blutzelle', emoji:'🔴',
+    desc:'Transportiert Sauerstoff durch den Körper',
+    color:'#ff2244', glow:'#ff000088',
+    collectColor:'#00ccff', collectLabel:'O₂',
+    collectFact: [
+      'Rote Blutzellen leben ~120 Tage!',
+      'Ein Tropfen Blut enthält ~5 Mio. rote Blutzellen',
+      'RBCs haben keinen Zellkern – mehr Platz für Hämoglobin!',
+      'Hämoglobin macht Blut rot & bindet Sauerstoff',
+      'Pro Sekunde werden 2–3 Mio. neue RBCs gebildet',
+    ],
+    obstacles:['thrombus','fibrin','platelet_stuck'],
+    powerup:'speed', // welcher Powerup häufiger spawnt
+    bgColor:'#110008',
+    trackColor:'#2e000e',
+  },
+  wbc: {
+    id:'wbc', name:'Weißes Blutkörperchen', emoji:'⚪',
+    desc:'Bekämpft Krankheitserreger & schützt den Körper',
+    color:'#88ccff', glow:'#4488ff88',
+    collectColor:'#aaffcc', collectLabel:'Ab',
+    collectFact: [
+      'Leukozyten können durch Gefäßwände wandern!',
+      '1mm³ Blut enthält 4.000–11.000 Leukozyten',
+      'Bei Infektionen steigt die WBC-Zahl drastisch an',
+      'Neutrophile fressen Bakterien durch Phagozytose',
+      'Das Immungedächtnis "merkt" sich Krankheitserreger',
+    ],
+    obstacles:['bacterium','virus_big','fungus'],
+    powerup:'shield',
+    bgColor:'#050a18',
+    trackColor:'#0a1a33',
+  },
+  platelet: {
+    id:'platelet', name:'Blutplättchen', emoji:'🟠',
+    desc:'Verschließt Wunden und stoppt Blutungen',
+    color:'#ff7700', glow:'#ff550044',
+    collectColor:'#ffdd44', collectLabel:'Ca²⁺',
+    collectFact: [
+      'Thrombozyten sind nur 2–4 μm klein!',
+      'Ohne Blutplättchen würden Wunden nicht heilen',
+      'Blutplättchen leben nur 7–10 Tage',
+      'Sie kleben zusammen und bilden einen Pfropf',
+      '150.000–400.000 Plättchen pro mm³ Blut',
+    ],
+    obstacles:['leukozyt','enzyme','anticoag'],
+    powerup:'magnet',
+    bgColor:'#120900',
+    trackColor:'#2a1400',
+  },
+  virus: {
+    id:'virus', name:'Virus', emoji:'🟢',
+    desc:'Ein Eindringling – kannst du entkommen?',
+    color:'#88ff44', glow:'#44ff0066',
+    collectColor:'#ff44cc', collectLabel:'DNA',
+    collectFact: [
+      'Viren sind 100× kleiner als Bakterien!',
+      'Viren brauchen Wirtszellen zum Überleben',
+      'COVID-19 ist 0,1 μm groß – unsichtbar für das Auge',
+      'Viren sind keine lebenden Organismen',
+      'Ein Virus kann in Sekunden Milliarden Kopien machen',
+    ],
+    obstacles:['antibody','wbc_hunter','interferon'],
+    powerup:'cloak',
+    bgColor:'#061202',
+    trackColor:'#0d2206',
+  },
+};
 
-                // Gruppen erstellen
-                this.bloodVessels = this.add.group();
-                this.obstacles = this.add.group();
-                this.oxygen = this.add.group();
-                this.particles = this.add.particles(0xffffff);
+// ══════════════════════════════════════════════════════════════
+// OBSTACLE DEFINITIONS (drawing recipes)
+// ══════════════════════════════════════════════════════════════
+const OBS_INFO = {
+  thrombus:      { label:'Thrombus',       color:'#880022', w:36, h:32, danger:'Blutgerinnsel blockiert Gefäße!' },
+  fibrin:        { label:'Fibrin-Wand',    color:'#660011', w:40, h:54, danger:'Fibrin-Netz – nicht fangbar!' },
+  platelet_stuck:{ label:'Klumpen',        color:'#994400', w:30, h:22, danger:'Plättchenklumpen!' },
+  bacterium:     { label:'Bakterium',      color:'#88aa00', w:34, h:34, danger:'Bakterien angriff!' },
+  virus_big:     { label:'Virus',          color:'#cc44ff', w:32, h:32, danger:'Viren! WBC in Alarmbereitschaft' },
+  fungus:        { label:'Pilz',           color:'#886600', w:30, h:38, danger:'Pilzinfektion!' },
+  leukozyt:      { label:'Leukozyt',       color:'#4488ff', w:36, h:36, danger:'Immunzelle jagt dich!' },
+  enzyme:        { label:'Enzym',          color:'#ff8844', w:28, h:28, danger:'Enzym löst Plättchen auf!' },
+  anticoag:      { label:'Heparin',        color:'#44ffcc', w:26, h:26, danger:'Gerinnungshemmer!' },
+  antibody:      { label:'Antikörper',     color:'#ffcc00', w:34, h:38, danger:'Antikörper bindet Viren!' },
+  wbc_hunter:    { label:'Immunzelle',     color:'#88ccff', w:38, h:38, danger:'WBC jagt den Virus!' },
+  interferon:    { label:'Interferon',     color:'#ff6699', w:28, h:28, danger:'Interferon blockiert Replikation!' },
+};
 
-                // Hintergrund
-                this.createBackground();
+// ══════════════════════════════════════════════════════════════
+// POWERUP DEFINITIONS
+// ══════════════════════════════════════════════════════════════
+const POWERUP_INFO = {
+  speed:   { label:'SPEED',   color:'#ffdd00', desc:'Boost!',         duration:300, icon:'🚀' },
+  shield:  { label:'SCHILD',  color:'#44aaff', desc:'Unverwundbar!',  duration:240, icon:'🛡️' },
+  magnet:  { label:'MAGNET',  color:'#ff44aa', desc:'Sammelt O₂!',    duration:360, icon:'🧲' },
+  cloak:   { label:'TARNUNG', color:'#88ff44', desc:'Unsichtbar!',    duration:270, icon:'🫥' },
+  x2:      { label:'×2',      color:'#ff8800', desc:'Doppelpunkte!',  duration:400, icon:'⭐' },
+};
 
-                // Spieler
-                this.player = this.createPlayer();
+// ══════════════════════════════════════════════════════════════
+// GAME STATE
+// ══════════════════════════════════════════════════════════════
+let state = 'menu'; // menu | charselect | play | dead
+let selectedChar = null;
+let charDef = null;
 
-                // UI
-                this.createUI();
+let score, distance, speed, spawnTimer, diffLevel;
+let player, obstacles, orbs, powerupItems, particles, bgTiles, floatTexts;
+let frameCount = 0;
+let hiScores = { rbc:0, wbc:0, platelet:0, virus:0 };
+let combo = 0, comboTimer = 0;
+let activePowerup = null, powerupTimer = 0;
+let screenShake = 0;
+let factPopup = null; // { text, life }
+let totalOrbs = 0;
+let charHoverIdx = -1;
 
-                // Events
-                this.physics.add.overlap(this.player, this.oxygen, (player, bubble) => this.collectOxygen(bubble));
-                this.physics.add.overlap(this.player, this.obstacles, (player, obstacle) => this.hitObstacle());
+// ══════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════
+function initGame() {
+  charDef = CHARS[selectedChar];
+  score = 0; distance = 0; speed = 5.5;
+  spawnTimer = 0; diffLevel = 0; frameCount = 0;
+  combo = 0; comboTimer = 0;
+  activePowerup = null; powerupTimer = 0;
+  factPopup = null; totalOrbs = 0;
+  screenShake = 0;
 
-                // Spawn-Timer
-                this.time.addEvent({ delay: 500, callback: () => this.spawnObstacle(), loop: true });
-                this.time.addEvent({ delay: 800, callback: () => this.spawnOxygen(), loop: true });
-                this.time.addEvent({ delay: 5000, callback: () => this.increaseDifficulty(), loop: true });
-            }
+  player = {
+    lane: 1, targetX: LANES[1], x: LANES[1], y: GY,
+    vy: 0, onGround: true, jumps: 0,
+    lives: 3, invincible: 0,
+    squish: 1, lean: 0,
+    _leftHeld: false, _rightHeld: false,
+    w: 28, h: 34,
+  };
 
-            update() {
-                if (this.gameOver) return;
+  obstacles = []; orbs = []; powerupItems = [];
+  particles = []; bgTiles = []; floatTexts = [];
 
-                this.elapsedTime += this.game.loop.delta;
+  for (let y = -40; y < H+40; y += 70) spawnBgTile(y);
+}
 
-                // ===== BLUTBAHN SCROLLEN =====
-                this.bloodVessels.children.entries.forEach(vessel => {
-                    vessel.y += this.speed;
-                    if (vessel.y > this.cameras.main.height + 50) {
-                        vessel.destroy();
-                    }
-                });
+// ══════════════════════════════════════════════════════════════
+// DRAWING HELPERS
+// ══════════════════════════════════════════════════════════════
+function glow(color, blur=18) { ctx.shadowBlur=blur; ctx.shadowColor=color; }
+function noGlow() { ctx.shadowBlur=0; ctx.shadowColor='transparent'; }
 
-                // ===== HINDERNISSE BEWEGEN =====
-                this.obstacles.children.entries.forEach(obstacle => {
-                    obstacle.y += this.speed;
-                    if (obstacle.y > this.cameras.main.height + 50) {
-                        obstacle.destroy();
-                    }
-                });
+function roundRect(x,y,w,h,r) {
+  ctx.beginPath();
+  ctx.roundRect(x,y,w,h,r);
+}
 
-                // ===== SAUERSTOFF BEWEGEN =====
-                this.oxygen.children.entries.forEach(bubble => {
-                    bubble.y += this.speed;
-                    bubble.angle += 3;
-                    if (bubble.y > this.cameras.main.height + 50) {
-                        bubble.destroy();
-                    }
-                });
+// ══════════════════════════════════════════════════════════════
+// BACKGROUND
+// ══════════════════════════════════════════════════════════════
+function spawnBgTile(y) {
+  bgTiles.push({ y, lOff: Math.random()*30-15, rOff: Math.random()*30-15 });
+}
 
-                // ===== SPIELER-STEUERUNG =====
-                this.handlePlayerInput();
+function drawBackground() {
+  const bg = charDef ? charDef.bgColor : '#08000f';
+  ctx.fillStyle = bg;
+  ctx.fillRect(0,0,W,H);
 
-                // ===== BLUTBAHNEN SPAWNEN =====
-                if (!this.nextVesselTime) this.nextVesselTime = this.time.now;
-                if (this.time.now - this.nextVesselTime > 100) {
-                    this.spawnBloodVessel();
-                    this.nextVesselTime = this.time.now;
-                }
-            }
+  // Vessel walls
+  ctx.fillStyle = 'rgba(80,0,20,0.25)';
+  ctx.fillRect(0,0,60,H);
+  ctx.fillRect(W-60,0,60,H);
 
-            createBackground() {
-                // Farbverlauf-Hintergrund (Körperinneres)
-                const graphics = this.make.graphics({ x: 0, y: 0, add: false });
-                graphics.fillStyle(0x1a0a1a, 1);
-                graphics.fillRect(0, 0, 400, 600);
-                graphics.generateTexture('bgTexture', 400, 600);
-                graphics.destroy();
+  // Wall glow lines
+  ctx.strokeStyle = charDef ? charDef.glow : '#ff002255';
+  ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(60,0); ctx.lineTo(60,H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W-60,0); ctx.lineTo(W-60,H); ctx.stroke();
 
-                this.add.image(200, 300, 'bgTexture');
-            }
+  // Organic bumps on walls
+  ctx.globalAlpha=0.1;
+  ctx.fillStyle = charDef ? charDef.color : '#ff4466';
+  bgTiles.forEach(t => {
+    ctx.beginPath(); ctx.ellipse(28+t.lOff, t.y, 20,10,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(W-28+t.rOff, t.y, 20,10,0,0,Math.PI*2); ctx.fill();
+  });
+  ctx.globalAlpha=1;
 
-            createPlayer() {
-                // Spieler-Kreis
-                const player = this.add.circle(200, 500, 12, 0xff6b6b);
-                player.setStroke(0xff0000, 2);
-                this.physics.add.existing(player);
-                player.body.setCollideWorldBounds(true);
-                player.body.setBounce(0.2);
+  // Lane separators
+  ctx.save();
+  ctx.setLineDash([6,16]);
+  ctx.strokeStyle = charDef ? charDef.color+'22' : '#ff224422';
+  ctx.lineWidth=1;
+  [155, 285].forEach(x => {
+    ctx.beginPath(); ctx.moveTo(x,60); ctx.lineTo(x,H); ctx.stroke();
+  });
+  ctx.setLineDash([]);
+  ctx.restore();
+}
 
-                // Lanespuren (3 Blutbahnen)
-                player.lanes = [80, 200, 320];
-                player.currentLane = 1;
-                player.targetX = player.lanes[player.currentLane];
-                player.x = player.targetX;
+function drawGround() {
+  LANES.forEach(x => {
+    // Platform
+    const g = ctx.createLinearGradient(x-42,0,x+42,0);
+    g.addColorStop(0,'#100006');
+    g.addColorStop(0.5, charDef ? charDef.trackColor : '#2e000e');
+    g.addColorStop(1,'#100006');
+    ctx.fillStyle=g;
+    roundRect(x-42, GY+player.h/2, 84, 24, 7);
+    ctx.fill();
+    // Top glow
+    ctx.strokeStyle = charDef ? charDef.color+'44' : '#ff224444';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(x-40, GY+player.h/2+1); ctx.lineTo(x+40, GY+player.h/2+1);
+    ctx.stroke();
+  });
+}
 
-                return player;
-            }
+// ══════════════════════════════════════════════════════════════
+// DRAW PLAYER CHARACTER
+// ══════════════════════════════════════════════════════════════
+function drawPlayer() {
+  if (player.invincible>0 && Math.floor(frameCount/4)%2===0) return;
+  const cd = charDef;
 
-            handlePlayerInput() {
-                const moveLeft = this.keys.left.isDown || this.wasd.a.isDown;
-                const moveRight = this.keys.right.isDown || this.wasd.d.isDown;
-                const moveUp = this.keys.up.isDown || this.wasd.w.isDown;
-                const moveDown = this.keys.down.isDown || this.wasd.s.isDown;
+  ctx.save();
+  let sx=0,sy=0;
+  if(screenShake>0){sx=(Math.random()-0.5)*screenShake;sy=(Math.random()-0.5)*screenShake;}
+  ctx.translate(player.x+sx, player.y+sy);
+  ctx.scale(1+player.lean*0.06, player.squish);
 
-                // Seitwärtsbewegung zwischen Spuren
-                if (moveLeft && this.player.currentLane > 0) {
-                    this.player.currentLane--;
-                    this.player.targetX = this.player.lanes[this.player.currentLane];
-                    this.keys.left.isDown = false;
-                    this.wasd.a.isDown = false;
-                }
-                if (moveRight && this.player.currentLane < 2) {
-                    this.player.currentLane++;
-                    this.player.targetX = this.player.lanes[this.player.currentLane];
-                    this.keys.right.isDown = false;
-                    this.wasd.d.isDown = false;
-                }
+  // Powerup aura
+  if(activePowerup==='shield'){
+    ctx.save(); glow('#44aaff',30);
+    ctx.strokeStyle='#44aaff88'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.ellipse(0,0,player.w*0.7,player.h*0.6,0,0,Math.PI*2); ctx.stroke();
+    noGlow(); ctx.restore();
+  }
+  if(activePowerup==='cloak') ctx.globalAlpha=0.35;
 
-                // Smooth-Movement zur Zielspur
-                this.player.x += (this.player.targetX - this.player.x) * 0.15;
+  // Shadow
+  if(player.onGround){
+    ctx.globalAlpha*=0.3;
+    ctx.fillStyle='#000000';
+    ctx.beginPath(); ctx.ellipse(0, player.h/2+5, player.w*0.6,5,0,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha = activePowerup==='cloak'?0.35:1;
+  }
 
-                // Vertikal-Bewegung
-                if (moveUp) {
-                    this.player.y = Math.max(this.player.y - 6, 50);
-                }
-                if (moveDown) {
-                    this.player.y = Math.min(this.player.y + 6, 550);
-                }
-            }
+  // Draw by character type
+  ctx.font='26px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(cd.emoji, 0, 0);
 
-            spawnBloodVessel() {
-                // Rund, rötliche Blutbahn als dünne Ringe
-                const lane = Phaser.Math.Between(0, 2);
-                const x = [80, 200, 320][lane];
-                const vessel = this.add.circle(x, -20, 25);
-                vessel.setStroke(0xcc0000, 3);
-                vessel.setFillStyle(0x330000, 0.3);
-                this.physics.add.existing(vessel);
-                vessel.body.setVelocityY(0);
-                this.bloodVessels.add(vessel);
-            }
+  ctx.restore();
+}
 
-            spawnObstacle() {
-                // Blutklumpen (rötliche, organische Formen)
-                const lane = Phaser.Math.Between(0, 2);
-                const x = [80, 200, 320][lane];
-                const y = -40;
-                
-                // Größe und Form variieren
-                const size = Phaser.Math.Between(15, 25);
-                const obstacle = this.add.circle(x, y, size, 0x990000);
-                obstacle.setStroke(0x660000, 2);
-                
-                this.physics.add.existing(obstacle);
-                obstacle.body.setVelocityY(0);
-                
-                // Zufällige Horizontalbewegung
-                obstacle.velocityX = Phaser.Math.Between(-1, 1) * 2;
-                
-                this.obstacles.add(obstacle);
-            }
+function drawRBC(){
+  // Biconcave disc
+  const g=ctx.createRadialGradient(-6,-8,2,0,0,player.w*0.6);
+  g.addColorStop(0,'#ff99aa'); g.addColorStop(0.4,'#ff2244'); g.addColorStop(1,'#770011');
+  ctx.fillStyle=g;
+  ctx.beginPath(); ctx.ellipse(0,0,player.w*0.52,player.h*0.5,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#cc0033'; ctx.beginPath(); ctx.ellipse(0,2,player.w*0.2,player.h*0.16,0,0,Math.PI*2); ctx.fill();
+  glow('#ff0033',12); ctx.strokeStyle='#ff446688'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.ellipse(0,0,player.w*0.52,player.h*0.5,0,0,Math.PI*2); ctx.stroke(); noGlow();
+  ctx.fillStyle='rgba(255,200,200,0.4)'; ctx.beginPath(); ctx.ellipse(-7,-9,7,5,-0.4,0,Math.PI*2); ctx.fill();
+}
 
-            spawnOxygen() {
-                // Sauerstoffblasen (hellblaue Kugeln)
-                const lane = Phaser.Math.Between(0, 2);
-                const x = [80, 200, 320][lane];
-                const bubble = this.add.circle(x, -30, 8, 0x00d4ff);
-                bubble.setStroke(0x00a8cc, 1);
-                bubble.setFillStyle(0x00d4ff, 0.8);
-                
-                this.physics.add.existing(bubble);
-                bubble.body.setVelocityY(0);
-                
-                this.oxygen.add(bubble);
-            }
+function drawWBC(){
+  // Amoeba-like white cell
+  const g=ctx.createRadialGradient(-4,-6,2,0,0,player.w*0.6);
+  g.addColorStop(0,'#ddeeff'); g.addColorStop(0.5,'#88ccff'); g.addColorStop(1,'#2255aa');
+  ctx.fillStyle=g;
+  ctx.beginPath();
+  for(let a=0,r=player.w*0.5;a<Math.PI*2;a+=Math.PI/6){
+    const wobble=r*(0.85+0.15*Math.sin(a*3+frameCount*0.08));
+    a===0?ctx.moveTo(Math.cos(a)*wobble,Math.sin(a)*wobble):ctx.lineTo(Math.cos(a)*wobble,Math.sin(a)*wobble);
+  }
+  ctx.closePath(); ctx.fill();
+  // Nucleus (multi-lobed)
+  ctx.fillStyle='#334488';
+  ctx.beginPath(); ctx.ellipse(-5,-2,7,6,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(5,2,5,5,0,0,Math.PI*2); ctx.fill();
+  glow('#4488ff',14); ctx.strokeStyle='#88ccff44'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.ellipse(0,0,player.w*0.52,player.h*0.5,0,0,Math.PI*2); ctx.stroke(); noGlow();
+  ctx.fillStyle='rgba(200,230,255,0.35)'; ctx.beginPath(); ctx.ellipse(-7,-8,6,4,-0.3,0,Math.PI*2); ctx.fill();
+}
 
-            collectOxygen(bubble) {
-                // Partikel-Effekt
-                const emitter = this.particles.createEmitter({
-                    speed: { min: -200, max: 200 },
-                    angle: { min: 240, max: 300 },
-                    scale: { start: 1, end: 0 },
-                    lifespan: 600,
-                    gravityY: 0
-                });
-                emitter.emitParticleAt(bubble.x, bubble.y, 8);
+function drawPlatelet_char(){
+  const g=ctx.createRadialGradient(-4,-5,1,0,0,player.w*0.55);
+  g.addColorStop(0,'#ffaa55'); g.addColorStop(0.5,'#ff7700'); g.addColorStop(1,'#882200');
+  ctx.fillStyle=g;
+  // Irregular disc
+  ctx.beginPath();
+  for(let i=0;i<8;i++){
+    const a=i/8*Math.PI*2, r=player.w*(0.42+0.1*(i%2===0?1:0));
+    i===0?ctx.moveTo(Math.cos(a)*r,Math.sin(a)*r*0.7):ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r*0.7);
+  }
+  ctx.closePath(); ctx.fill();
+  // Surface granules
+  for(let i=0;i<6;i++){
+    const a=i/6*Math.PI*2;
+    ctx.fillStyle='#ff9944'; ctx.beginPath();
+    ctx.arc(Math.cos(a)*8,Math.sin(a)*6,2.5,0,Math.PI*2); ctx.fill();
+  }
+  glow('#ff6600',12); ctx.strokeStyle='#ff880044'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.ellipse(0,0,player.w*0.5,player.h*0.42,0,0,Math.PI*2); ctx.stroke(); noGlow();
+}
 
-                // Sound-Effekt (optional - einfacher Beep)
-                this.sound.play('collect', { volume: 0.5 }).catch(() => {});
+function drawVirus_char(){
+  ctx.font='26px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('🟢', 0, 0);
+}
 
-                this.score += 10;
-                bubble.destroy();
-                this.updateUI();
-            }
+function drawVirusIcon(x,y,size){
+  const r=size*0.48;
+  const g=ctx.createRadialGradient(x-size*0.08,y-size*0.12,size*0.04,x,y,r);
+  g.addColorStop(0,'#ccff88'); g.addColorStop(0.5,'#88ff44'); g.addColorStop(1,'#226600');
+  ctx.fillStyle=g;
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#99ee44';
+  for(let i=0;i<12;i++){
+    const a=i/12*Math.PI*2;
+    ctx.beginPath();
+    ctx.arc(x+Math.cos(a)*size*0.38, y+Math.sin(a)*size*0.38, size*0.07, 0, Math.PI*2);
+    ctx.fill();
+  }
+  glow('#44ff00',16); ctx.strokeStyle='#88ff4455'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke(); noGlow();
+  ctx.fillStyle='rgba(180,255,100,0.35)';
+  ctx.beginPath(); ctx.ellipse(x-size*0.1,y-size*0.15,size*0.09,size*0.05,-0.4,0,Math.PI*2); ctx.fill();
+}
 
-            hitObstacle() {
-                if (this.gameOver) return;
+// ══════════════════════════════════════════════════════════════
+// DRAW OBSTACLES
+// ══════════════════════════════════════════════════════════════
+function drawObstacle(o){
+  ctx.save(); ctx.translate(o.x, o.y);
+  const t=o.type, inf=OBS_INFO[t];
+  const pulse=0.92+0.08*Math.sin(frameCount*0.1+o.phase);
 
-                this.lives--;
+  if(t==='thrombus'){
+    const g=ctx.createRadialGradient(-5,-5,2,0,0,inf.w*0.55);
+    g.addColorStop(0,'#cc1133'); g.addColorStop(1,'#440011');
+    ctx.fillStyle=g;
+    ctx.beginPath();
+    ctx.moveTo(inf.w*0.4*pulse,0);
+    ctx.bezierCurveTo(inf.w*0.4,-inf.h*0.55,-inf.w*0.55,-inf.h*0.45,-inf.w*0.38,0);
+    ctx.bezierCurveTo(-inf.w*0.55,inf.h*0.45,inf.w*0.3,inf.h*0.55,inf.w*0.4*pulse,0);
+    ctx.fill();
+    ctx.strokeStyle='#ff002244'; ctx.lineWidth=2; ctx.stroke();
+  }
+  else if(t==='fibrin'){
+    const g=ctx.createLinearGradient(-inf.w/2,-inf.h/2,inf.w/2,inf.h/2);
+    g.addColorStop(0,'#991122'); g.addColorStop(1,'#330011');
+    ctx.fillStyle=g;
+    roundRect(-inf.w/2,-inf.h/2,inf.w,inf.h,5); ctx.fill();
+    ctx.strokeStyle='#ff113344'; ctx.lineWidth=1.5;
+    for(let i=-inf.w/2+6;i<inf.w/2;i+=9){
+      ctx.beginPath(); ctx.moveTo(i,-inf.h/2); ctx.lineTo(i+5,inf.h/2); ctx.stroke();
+    }
+    ctx.strokeStyle='#cc002266'; ctx.lineWidth=2;
+    roundRect(-inf.w/2,-inf.h/2,inf.w,inf.h,5); ctx.stroke();
+  }
+  else if(t==='platelet_stuck'){
+    const g=ctx.createRadialGradient(0,-3,1,0,0,inf.w*0.5);
+    g.addColorStop(0,'#dd6600'); g.addColorStop(1,'#772200');
+    ctx.fillStyle=g;
+    ctx.beginPath(); ctx.ellipse(0,0,inf.w*0.5*pulse,inf.h*0.5,0,0,Math.PI*2); ctx.fill();
+    // spiky
+    for(let a=0;a<Math.PI*2;a+=Math.PI/4){
+      ctx.strokeStyle='#ff660033'; ctx.lineWidth=1.5;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*inf.w*0.4,Math.sin(a)*inf.h*0.4);
+      ctx.lineTo(Math.cos(a)*inf.w*0.65,Math.sin(a)*inf.h*0.65);
+      ctx.stroke();
+    }
+  }
+  else if(t==='bacterium'){
+    ctx.fillStyle='#99bb00';
+    ctx.beginPath(); ctx.ellipse(0,0,inf.w*0.35,inf.h*0.5*pulse,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#bbdd0033'; ctx.lineWidth=1;
+    for(let i=-3;i<=3;i+=3){
+      ctx.beginPath(); ctx.moveTo(i,-inf.h*0.5); ctx.lineTo(i,-inf.h*0.7);
+      ctx.moveTo(i,inf.h*0.5); ctx.lineTo(i,inf.h*0.7); ctx.stroke();
+    }
+    ctx.strokeStyle='#aaccoo22'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.ellipse(0,0,inf.w*0.35,inf.h*0.5,0,0,Math.PI*2); ctx.stroke();
+  }
+  else if(t==='virus_big'){
+    ctx.fillStyle='#aa44dd';
+    ctx.beginPath(); ctx.arc(0,0,inf.w*0.45,0,Math.PI*2); ctx.fill();
+    const bumps=10;
+    ctx.fillStyle='#cc66ff';
+    for(let i=0;i<bumps;i++){
+      const a=i/bumps*Math.PI*2;
+      ctx.beginPath();
+      ctx.arc(Math.cos(a)*inf.w*0.42,Math.sin(a)*inf.w*0.42,4,0,Math.PI*2);
+      ctx.fill();
+    }
+  }
+  else if(t==='fungus'){
+    ctx.fillStyle='#886600';
+    ctx.beginPath(); ctx.ellipse(0,inf.h*0.15,inf.w*0.48,inf.h*0.38,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#aa8800';
+    ctx.beginPath(); ctx.arc(0,-inf.h*0.18,inf.w*0.35,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#ccaa00';
+    ctx.beginPath(); ctx.arc(-inf.w*0.2,-inf.h*0.28,inf.w*0.2,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(inf.w*0.2,-inf.h*0.28,inf.w*0.2,0,Math.PI*2); ctx.fill();
+  }
+  else if(t==='leukozyt'){
+    const g=ctx.createRadialGradient(-4,-5,2,0,0,inf.w*0.5);
+    g.addColorStop(0,'#ddeeff'); g.addColorStop(1,'#2255aa');
+    ctx.fillStyle=g;
+    ctx.beginPath(); ctx.arc(0,0,inf.w*0.48*pulse,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#334488'; ctx.beginPath(); ctx.ellipse(-4,-2,8,7,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(5,2,6,6,0,0,Math.PI*2); ctx.fill();
+    // Pseudopods
+    for(let i=0;i<4;i++){
+      const a=i/4*Math.PI*2+frameCount*0.04;
+      ctx.fillStyle='#88ccff44';
+      ctx.beginPath(); ctx.ellipse(Math.cos(a)*inf.w*0.55,Math.sin(a)*inf.w*0.55,6,4,a,0,Math.PI*2); ctx.fill();
+    }
+  }
+  else if(t==='enzyme'){
+    ctx.fillStyle='#ff8844';
+    ctx.beginPath();
+    for(let i=0;i<6;i++){
+      const a=i/6*Math.PI*2, r=inf.w*(i%2===0?0.45:0.25)*pulse;
+      i===0?ctx.moveTo(Math.cos(a)*r,Math.sin(a)*r):ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='#ffaa6644'; ctx.lineWidth=1.5; ctx.stroke();
+  }
+  else if(t==='anticoag'){
+    ctx.strokeStyle='#44ffcc'; ctx.lineWidth=3;
+    for(let i=0;i<3;i++){
+      ctx.beginPath(); ctx.arc(0,0,inf.w*(0.25+i*0.1)*pulse,0,Math.PI*2); ctx.stroke();
+    }
+    ctx.fillStyle='#44ffcc33'; ctx.beginPath(); ctx.arc(0,0,inf.w*0.25,0,Math.PI*2); ctx.fill();
+  }
+  else if(t==='antibody'){
+    // Y-shape antibody
+    ctx.strokeStyle='#ffcc00'; ctx.lineWidth=4;
+    ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(0,inf.h*0.4); ctx.lineTo(0,0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-inf.w*0.4,-inf.h*0.4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(inf.w*0.4,-inf.h*0.4); ctx.stroke();
+    ctx.fillStyle='#ffcc00';
+    [[-inf.w*0.4,-inf.h*0.4],[inf.w*0.4,-inf.h*0.4],[0,inf.h*0.4]].forEach(([bx,by])=>{
+      ctx.beginPath(); ctx.arc(bx,by,5,0,Math.PI*2); ctx.fill();
+    });
+    glow('#ffcc00',14); ctx.strokeStyle='#ffcc0044'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(0,0,inf.w*0.55*pulse,0,Math.PI*2); ctx.stroke(); noGlow();
+  }
+  else if(t==='wbc_hunter'){
+    const g=ctx.createRadialGradient(-5,-5,2,0,0,inf.w*0.55);
+    g.addColorStop(0,'#aaddff'); g.addColorStop(1,'#1144aa');
+    ctx.fillStyle=g;
+    for(let i=0;i<5;i++){
+      const a=i/5*Math.PI*2+frameCount*0.05;
+      ctx.beginPath(); ctx.ellipse(Math.cos(a)*inf.w*0.45,Math.sin(a)*inf.w*0.45,inf.w*0.28,inf.w*0.22,a,0,Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle='#224488'; ctx.beginPath(); ctx.arc(0,0,inf.w*0.2,0,Math.PI*2); ctx.fill();
+  }
+  else if(t==='interferon'){
+    ctx.strokeStyle='#ff6699'; ctx.lineWidth=2;
+    const pts=5;
+    ctx.beginPath();
+    for(let i=0;i<pts*2;i++){
+      const a=i/pts*Math.PI, r=inf.w*(i%2===0?0.48:0.22)*pulse;
+      i===0?ctx.moveTo(Math.cos(a)*r,Math.sin(a)*r):ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);
+    }
+    ctx.closePath();
+    ctx.fillStyle='#ff669922'; ctx.fill(); ctx.stroke();
+  }
 
-                // Hit-Effekt
-                this.cameras.main.shake(200, 0.02);
-                const emitter = this.particles.createEmitter({
-                    speed: { min: -150, max: 150 },
-                    angle: { min: 200, max: 340 },
-                    scale: { start: 1, end: 0 },
-                    lifespan: 500,
-                    gravityY: 0,
-                    tint: 0xff0000
-                });
-                emitter.emitParticleAt(this.player.x, this.player.y, 12);
+  // Danger glow + label
+  glow('#ff0000',16);
+  ctx.strokeStyle=inf.color+'44'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.ellipse(0,0,inf.w*0.65,inf.h*0.65,0,0,Math.PI*2); ctx.stroke();
+  noGlow();
 
-                this.updateUI();
+  // Obstacle label
+  ctx.fillStyle='#ffffff33';
+  ctx.font='bold 8px Exo 2, sans-serif';
+  ctx.textAlign='center';
+  ctx.fillText(inf.label, 0, inf.h*0.7+10);
 
-                if (this.lives <= 0) {
-                    this.endGame();
-                }
-            }
+  ctx.restore();
+}
 
-            increaseDifficulty() {
-                this.difficulty++;
-                this.speed = this.baseSpeed + (this.difficulty * 0.5);
-            }
+// ══════════════════════════════════════════════════════════════
+// ORBS (collectibles)
+// ══════════════════════════════════════════════════════════════
+function spawnOrb(){
+  const lane=Math.floor(Math.random()*3);
+  orbs.push({
+    x:LANES[lane], y:-20, r:11, lane,
+    floatOff:Math.random()*Math.PI*2,
+    collected:false,
+  });
+}
 
-            createUI() {
-                // Score
-                this.scoreText = this.add.text(16, 16, `Score: ${this.score}`, {
-                    fontSize: '20px',
-                    fill: '#00d4ff',
-                    fontStyle: 'bold'
-                });
+function drawOrb(o){
+  if(o.collected) return;
+  const fy=o.y+Math.sin(o.floatOff+frameCount*0.06)*5;
+  ctx.save(); ctx.translate(o.x, fy);
+  glow(charDef.collectColor, 22);
+  const g=ctx.createRadialGradient(-3,-3,1,0,0,o.r);
+  g.addColorStop(0,'#ffffff'); g.addColorStop(0.4,charDef.collectColor); g.addColorStop(1,charDef.collectColor+'66');
+  ctx.fillStyle=g;
+  ctx.beginPath(); ctx.arc(0,0,o.r,0,Math.PI*2); ctx.fill();
+  noGlow();
+  ctx.fillStyle='#ffffff'; ctx.font='bold 7px Orbitron, monospace';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(charDef.collectLabel, 0, 1);
+  ctx.fillStyle='rgba(255,255,255,0.4)';
+  ctx.beginPath(); ctx.ellipse(-3,-4,3,2,-0.5,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
 
-                // Lives
-                this.livesText = this.add.text(16, 50, `❤️ ${this.lives}`, {
-                    fontSize: '20px',
-                    fill: '#ff6b6b'
-                });
+// ══════════════════════════════════════════════════════════════
+// POWERUP ITEMS
+// ══════════════════════════════════════════════════════════════
+function spawnPowerupItem(){
+  const types=['speed','shield','magnet','cloak','x2'];
+  // Prefer character's special powerup
+  const type = Math.random()<0.45 ? charDef.powerup :
+    types[Math.floor(Math.random()*types.length)];
+  const lane=Math.floor(Math.random()*3);
+  powerupItems.push({ x:LANES[lane], y:-30, type, r:13, collected:false });
+}
 
-                // Difficulty (optional)
-                this.diffText = this.add.text(300, 16, `Lv: ${this.difficulty}`, {
-                    fontSize: '16px',
-                    fill: '#ffaa00'
-                });
-            }
+function drawPowerupItem(p){
+  if(p.collected) return;
+  const inf=POWERUP_INFO[p.type];
+  const pulse=1+0.1*Math.sin(frameCount*0.1);
+  ctx.save(); ctx.translate(p.x,p.y);
+  glow(inf.color,24);
+  ctx.fillStyle=inf.color+'33';
+  ctx.beginPath(); ctx.arc(0,0,p.r*pulse*1.4,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=inf.color;
+  ctx.beginPath(); ctx.arc(0,0,p.r*pulse,0,Math.PI*2); ctx.fill();
+  noGlow();
+  ctx.fillStyle='#ffffff'; ctx.font='bold 9px Orbitron'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(inf.icon, 0, 1);
+  // Label below
+  ctx.fillStyle=inf.color+'cc'; ctx.font='7px Orbitron'; ctx.textBaseline='top';
+  ctx.fillText(inf.label, 0, p.r+3);
+  ctx.restore();
+}
 
-            updateUI() {
-                this.scoreText.setText(`Score: ${this.score}`);
-                this.livesText.setText(`❤️ ${this.lives}`);
-                this.diffText.setText(`Lv: ${this.difficulty}`);
-            }
+// ══════════════════════════════════════════════════════════════
+// PARTICLES
+// ══════════════════════════════════════════════════════════════
+function spawnParticles(x,y,color,count,spread=55){
+  for(let i=0;i<count;i++){
+    const a=Math.random()*Math.PI*2, spd=1.5+Math.random()*spread*0.05;
+    particles.push({
+      x,y,vx:Math.cos(a)*spd,vy:Math.sin(a)*spd-1.2,
+      r:2+Math.random()*3, life:1, decay:0.028+Math.random()*0.025, color
+    });
+  }
+}
 
-            endGame() {
-                this.gameOver = true;
-                this.physics.pause();
+function updateParticles(){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.09; p.life-=p.decay;
+    if(p.life<=0) particles.splice(i,1);
+  }
+}
 
-                // Game Over Overlay
-                const overlay = this.add.rectangle(200, 300, 400, 600, 0x000000, 0.7);
-                
-                // Game Over Text
-                const gameOverText = this.add.text(200, 200, 'GAME OVER', {
-                    fontSize: '48px',
-                    fill: '#ff0000',
-                    fontStyle: 'bold',
-                    align: 'center'
-                }).setOrigin(0.5);
+function drawParticles(){
+  particles.forEach(p=>{
+    ctx.globalAlpha=p.life;
+    ctx.fillStyle=p.color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2); ctx.fill();
+  });
+  ctx.globalAlpha=1;
+}
 
-                // Final Score
-                const finalScoreText = this.add.text(200, 280, `Final Score: ${this.score}`, {
-                    fontSize: '28px',
-                    fill: '#00d4ff',
-                    align: 'center'
-                }).setOrigin(0.5);
+// ══════════════════════════════════════════════════════════════
+// FLOAT TEXTS
+// ══════════════════════════════════════════════════════════════
+function drawFloatTexts(){
+  for(let i=floatTexts.length-1;i>=0;i--){
+    const f=floatTexts[i];
+    f.y-=1.3; f.life-=0.022;
+    if(f.life<=0){floatTexts.splice(i,1);continue;}
+    ctx.globalAlpha=f.life;
+    ctx.fillStyle=f.color;
+    ctx.font=`bold ${f.size}px Orbitron, monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(f.text,f.x,f.y);
+  }
+  ctx.globalAlpha=1; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+}
 
-                // Restart Button Text
-                const restartText = this.add.text(200, 380, 'Drücke R zum Neustart', {
-                    fontSize: '18px',
-                    fill: '#ffaa00',
-                    align: 'center'
-                }).setOrigin(0.5);
+function addFloat(x,y,text,color,size=14){
+  floatTexts.push({x,y,text,color,size,life:1});
+}
 
-                // Restart auf R-Taste
-                this.input.keyboard.once('keydown-R', () => {
-                    this.scene.restart();
-                });
-            }
-        }
+// ══════════════════════════════════════════════════════════════
+// FACT POPUP
+// ══════════════════════════════════════════════════════════════
+function showFact(text){
+  factPopup={text, life:1, timer:220};
+}
 
-        // ===== SIMPLE SOUND SETUP (Fallback) =====
-        // Erstelle einen stillen Sound zum Vermeiden von Errors
-        document.addEventListener('DOMContentLoaded', () => {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            audioContext.resume();
-        });
-    </script>
+function drawQuizOverlay(){
+  if(!quizQuestion) return;
+  // Dark overlay
+  ctx.fillStyle='rgba(0,0,0,0.85)';
+  ctx.fillRect(0,0,W,H);
+  // Quiz box
+  ctx.save();
+  glow('#ff44ff',20);
+  ctx.fillStyle='rgba(30,0,60,0.95)';
+  roundRect(20, 80, W-40, 480, 15); ctx.fill();
+  ctx.strokeStyle='#ff44ff'; ctx.lineWidth=2;
+  roundRect(20, 80, W-40, 480, 15); ctx.stroke();
+  noGlow(); ctx.restore();
+  // Title
+  ctx.fillStyle='#ff44ff'; ctx.font='bold 15px Orbitron'; ctx.textAlign='center';
+  ctx.fillText('❓ QUIZ-FRAGE', W/2, 110);
+  // Question
+  ctx.fillStyle='#ffffff'; ctx.font='12px Exo 2'; ctx.textAlign='center';
+  const words=quizQuestion.q.split(' '), maxW=W-80;
+  let line='', ly=150;
+  words.forEach(w=>{
+    const test=line+w+' ';
+    if(ctx.measureText(test).width>maxW && line){ ctx.fillText(line,W/2,ly); line=w+' '; ly+=16; }
+    else line=test;
+  });
+  ctx.fillText(line,W/2,ly);
+  // Options (buttons)
+  const btnH=60, btnY=[220, 300, 380];
+  quizQuestion.options.forEach((opt, idx)=>{
+    const y=btnY[idx];
+    const isCorrect=(idx===quizQuestion.correct);
+    const isSelected=quizAnswered && (idx===quizQuestion.correct);
+    const isWrong=quizAnswered && idx!==quizQuestion.correct;
+    if(isSelected) { ctx.fillStyle='#44ff4488'; ctx.strokeStyle='#44ff44'; }
+    else if(isWrong) { ctx.fillStyle='#ff444488'; ctx.strokeStyle='#ff4444'; }
+    else { ctx.fillStyle='rgba(100,50,150,0.5)'; ctx.strokeStyle='#aa66ff'; }
+    ctx.lineWidth=2;
+    roundRect(40, y, W-80, 55, 10); ctx.fill(); ctx.stroke();
+    ctx.fillStyle=isSelected?'#44ff44':isWrong?'#ff4444':'#ffffff';
+    ctx.font='bold 10px Orbitron'; ctx.textAlign='center';
+    ctx.fillText(`${String.fromCharCode(65+idx)}) ${opt}`, W/2, y+36);
+  });
+  // Info text
+  if(quizAnswered){
+    if(quizCorrect){
+      ctx.fillStyle='#44ff44'; ctx.fillText('Richtig! Kein Leben verloren.', W/2, 460);
+    } else {
+      ctx.fillStyle='#ff4444'; ctx.fillText('Falsch! Du verlierst ein Leben.', W/2, 460);
+    }
+  } else {
+    ctx.fillStyle='#cccccc'; ctx.font='10px Exo 2';
+    ctx.fillText('Klicke oder tippe die richtige Antwort (A/B/C)', W/2, 460);
+  }
+}
+
+function drawFactPopup(){
+  // WUSSTEST DU Felder sind jetzt deaktiviert
+}
+
+// ══════════════════════════════════════════════════════════════
+// HUD
+// ══════════════════════════════════════════════════════════════
+function drawHUD(){
+  // Top bar
+  ctx.fillStyle='rgba(0,0,0,0.6)';
+  ctx.fillRect(0,0,W,58);
+  ctx.strokeStyle=charDef.color+'33'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,58); ctx.lineTo(W,58); ctx.stroke();
+
+  // Score
+  ctx.fillStyle=charDef.collectColor; ctx.font='bold 10px Orbitron'; ctx.textAlign='left';
+  ctx.fillText('SCORE', 12,18);
+  ctx.font='bold 18px Orbitron'; ctx.fillStyle='#ffffff';
+  ctx.fillText(score, 12, 40);
+
+  // Distance
+  ctx.fillStyle=charDef.color; ctx.font='bold 9px Orbitron'; ctx.textAlign='center';
+  ctx.fillText(`${Math.floor(distance/100)}m`, W/2, 20);
+  ctx.fillStyle='#ffffff55'; ctx.font='8px Orbitron';
+  ctx.fillText(`LV ${diffLevel+1}`, W/2, 38);
+
+  // Combo
+  if(combo>=2){
+    const ca=Math.min(1,combo/10);
+    ctx.fillStyle=`hsl(${60-ca*60}, 100%, 60%)`;
+    ctx.font='bold 10px Orbitron'; ctx.textAlign='center';
+    ctx.fillText(`×${combo} COMBO`, W/2, 52);
+  }
+
+  // Lives
+  ctx.textAlign='right'; ctx.font='16px serif';
+  for(let i=0;i<3;i++){
+    ctx.globalAlpha = i<player.lives ? 1 : 0.15;
+    ctx.fillText('♥', W-10-i*27, 38);
+  }
+  ctx.globalAlpha=1;
+
+  // Char icon
+  ctx.font='14px serif'; ctx.textAlign='right';
+  ctx.fillText(charDef.emoji, W-12, 16);
+
+  // Active powerup bar
+  if(activePowerup){
+    const inf=POWERUP_INFO[activePowerup];
+    const pct=powerupTimer/inf.duration;
+    ctx.fillStyle='rgba(0,0,0,0.5)';
+    roundRect(W/2-50, 58, 100, 10, 3); ctx.fill();
+    ctx.fillStyle=inf.color;
+    roundRect(W/2-50, 58, 100*pct, 10, 3); ctx.fill();
+    ctx.fillStyle=inf.color; ctx.font='7px Orbitron'; ctx.textAlign='center';
+    ctx.fillText(`${inf.icon} ${inf.label}`, W/2, 75);
+  }
+
+  // Hi-score
+  const hi=hiScores[selectedChar];
+  if(hi>0){
+    ctx.fillStyle='#ffffff22'; ctx.font='8px Orbitron'; ctx.textAlign='left';
+    ctx.fillText(`BEST ${hi}`, 12, 54);
+  }
+
+  ctx.textAlign='left';
+}
+
+// ══════════════════════════════════════════════════════════════
+// COLLISION
+// ══════════════════════════════════════════════════════════════
+function rectsOverlap(ax,ay,aw,ah,bx,by,bw,bh){
+  return ax-aw/2<bx+bw/2 && ax+aw/2>bx-bw/2 && ay-ah/2<by+bh/2 && ay+ah/2>by-bh/2;
+}
+
+// ══════════════════════════════════════════════════════════════
+// UPDATE
+// ══════════════════════════════════════════════════════════════
+function update(){
+  frameCount++;
+  // Pausiere Spiel während Quiz aktiv ist
+  if(quizActive) return;
+  if(state!=='play') return;
+
+  distance+=speed;
+  const mult = activePowerup==='x2' ? 2 : 1;
+  score = Math.max(score, Math.floor(distance/60)*mult);
+
+  // Difficulty
+  const nd=Math.floor(distance/3500);
+  if(nd>diffLevel){ diffLevel=nd; speed=Math.min(5.5+diffLevel*0.75,13); }
+
+  // Combo decay
+  if(comboTimer>0){ comboTimer--; if(comboTimer===0) combo=0; }
+
+  // Powerup countdown
+  if(activePowerup){ powerupTimer--; if(powerupTimer<=0) activePowerup=null; }
+
+  // Screen shake decay
+  if(screenShake>0) screenShake=Math.max(0,screenShake-0.4);
+
+  // Player lean/squish spring
+  player.lean+=(0-player.lean)*0.14;
+  player.squish+=(1-player.squish)*0.17;
+
+  // Gravity
+  player.vy+=GRAVITY;
+  player.y+=player.vy;
+
+  // Ground
+  if(player.y>=GY){
+    if(!player.onGround){ player.squish=0.55; spawnParticles(player.x,GY+player.h/2,charDef.color+'44',6,35); }
+    player.y=GY; player.vy=0; player.onGround=true; player.jumps=0;
+  } else player.onGround=false;
+
+  // Invincibility
+  if(player.invincible>0) player.invincible--;
+
+  // Smooth X
+  player.x+=(player.targetX-player.x)*0.2;
+
+  // Input
+  if(keys['ArrowLeft']||keys['a']||keys['A']){
+    if(player.lane>0&&!player._leftHeld){ player.lane--; player.targetX=LANES[player.lane]; player.lean=-1; }
+    player._leftHeld=true;
+  } else player._leftHeld=false;
+  if(keys['ArrowRight']||keys['d']||keys['D']){
+    if(player.lane<2&&!player._rightHeld){ player.lane++; player.targetX=LANES[player.lane]; player.lean=1; }
+    player._rightHeld=true;
+  } else player._rightHeld=false;
+
+  // BG tiles
+  for(let i=bgTiles.length-1;i>=0;i--){
+    bgTiles[i].y+=speed;
+    if(bgTiles[i].y>H+80) bgTiles.splice(i,1);
+  }
+  if(bgTiles.length<12) spawnBgTile(-50);
+
+  // Spawn timers
+  spawnTimer++;
+  const oi=Math.max(42,88-diffLevel*5);
+  const orbi=Math.max(28,60-diffLevel*3);
+  const pupi=Math.max(400,900-diffLevel*40);
+  if(spawnTimer%oi<1) spawnObstacleForChar();
+  if(spawnTimer%orbi<1) spawnOrb();
+  if(spawnTimer%pupi<1) spawnPowerupItem();
+
+  // Move obstacles
+  for(let i=obstacles.length-1;i>=0;i--){
+    const o=obstacles[i];
+    o.y+=speed; o.x+=o.vx||0;
+    // bounce in play area
+    if(o.x<70||o.x>W-70) o.vx=(o.vx||0)*-1;
+    if(o.y>H+60){ obstacles.splice(i,1); continue; }
+    if(player.invincible===0 && !quizActive && activePowerup!=='shield' && activePowerup!=='cloak'){
+      const inf=OBS_INFO[o.type];
+      if(rectsOverlap(player.x,player.y,player.w*0.75,player.h*0.8, o.x,o.y,inf.w*0.72,inf.h*0.72)){
+        startQuiz(o.type);
+        obstacles.splice(i,1);
+        continue;
+      }
+    }
+  }
+
+  // Move orbs (magnet)
+  for(let i=orbs.length-1;i>=0;i--){
+    const o=orbs[i];
+    o.y+=speed;
+    if(o.y>H+60){ orbs.splice(i,1); continue; }
+    if(o.collected) continue;
+    // Magnet
+    if(activePowerup==='magnet'){
+      const dx=player.x-o.x, dy=player.y-o.y, dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<180){ o.x+=dx/dist*5; o.y+=dy/dist*5; }
+    }
+    const dx=player.x-o.x, dy=player.y-o.y;
+    if(Math.sqrt(dx*dx+dy*dy)<player.w*0.65+o.r){
+      collectOrb(o);
+    }
+  }
+
+  // Move powerup items
+  for(let i=powerupItems.length-1;i>=0;i--){
+    const p=powerupItems[i];
+    p.y+=speed;
+    if(p.y>H+60){ powerupItems.splice(i,1); continue; }
+    if(p.collected) continue;
+    const dx=player.x-p.x, dy=player.y-p.y;
+    if(Math.sqrt(dx*dx+dy*dy)<player.w*0.65+p.r){
+      collectPowerup(p);
+    }
+  }
+
+  updateParticles();
+}
+
+function spawnObstacleForChar(){
+  const types=charDef.obstacles;
+  const type=types[Math.floor(Math.random()*types.length)];
+  const lane=Math.floor(Math.random()*3);
+  const inf=OBS_INFO[type];
+  // sometimes add a wandering obstacle at higher levels
+  const vx = diffLevel>=2 ? (Math.random()-0.5)*2.5 : 0;
+  obstacles.push({ x:LANES[lane], y:-inf.h-20, type, vx, phase:Math.random()*Math.PI*2 });
+}
+
+function collectOrb(o){
+  o.collected=true;
+  combo++; comboTimer=120;
+  const pts=10*(combo>=5?2:1)*(activePowerup==='x2'?2:1);
+  score+=pts;
+  totalOrbs++;
+  spawnParticles(o.x,o.y,charDef.collectColor,10);
+  addFloat(o.x,o.y-15,`+${pts}`,charDef.collectColor,pts>10?16:13);
+  if(combo===5) addFloat(player.x,player.y-40,'COMBO ×5!','#ffdd00',18);
+}
+
+function collectPowerup(p){
+  p.collected=true;
+  const inf=POWERUP_INFO[p.type];
+  activePowerup=p.type;
+  powerupTimer=inf.duration;
+  spawnParticles(p.x,p.y,inf.color,16);
+  addFloat(p.x,p.y-20,inf.icon+' '+inf.label,inf.color,16);
+}
+
+// Quiz questions (einfache Fragen)
+const QUIZ_QUESTIONS = [
+  { q: 'Was ist der größte menschliche Knochen?', options: ['Elle', 'Wirbelsäule', 'Oberschenkelknochen'], correct: 2 },
+  { q: 'Welches Organ ist für den Blutkreislauf verantwortlich?', options: ['Herz', 'Lunge', 'Niere'], correct: 0 },
+  { q: 'Welche Farbe hat sauerstoffreiches Blut?', options: ['Dunkelot', 'Blau', 'Hellrot'], correct: 2 },
+  { q: 'Wie viele Knochen hat ein erwachsener Mensch?', options: ['206 Knochen', '274 Knochen', '152 Knochen'], correct: 0 },
+  { q: 'Wie heißt die stärkste Sehne im menschlichen Körper?', options: ['Kniescheibensehne', 'Achillessehne', 'Bizepssehne'], correct: 1 },
+  { q: 'Wie viele Liter Blut hat ein Erwachsener etwa?', options: ['3 Liter', '5 Liter', '10 Liter'], correct: 1 },
+  { q: 'Welches Organ ist für den Stoffwechsel verantwortlich?', options: ['Lunge', 'Herz', 'Leber'], correct: 2 },
+  { q: 'Welcher Teil des Auges reguliert die Größe der Pupille?', options: ['Netzhaut', 'Iris', 'Glaskörper'], correct: 1 },
+  { q: 'Welche Blutgefäße führen Blut zurück zum Herzen?', options: ['Venen', 'Arterien', 'Kapillaren'], correct: 0 },
+  { q: 'Wie viele Rippenpaare besitzt ein erwachsener Mensch?', options: ['11 Paare', '12 Paare', '14 Paare'], correct: 1 },
+  { q: 'Worin schwimmen die Blutzellen?', options: ['Plasma', 'Lymphe', 'Wasser'], correct: 0 },
+  { q: 'Was schützt der Körper vor Infektionen im Körper?', options: ['Blut', 'Immunsystem', 'Magen'], correct: 1 },
+  { q: 'Wofür sind Blutplättchen wichtig?', options: ['Transport', 'Atmung', 'Gerrinung'], correct: 2},
+  { q: 'Welche Zelle hilft beim Sauerstofftransport?', options: ['Rote Blutzelle', 'Fettzelle', 'Nervenzelle'], correct: 0 },
+];
+let quizActive = false;
+let quizAnswered = false;
+let quizQuestion = null;
+let quizCorrect = false;
+let lastQuizQuestionIndex = -1;
+
+function startQuiz(obstacleType) {
+  if (quizActive) return;
+  quizActive = true;
+  quizAnswered = false;
+  // Wähle eine neue Frage, die nicht die gleiche wie die letzte ist
+  let questionIndex;
+  do {
+    questionIndex = Math.floor(Math.random() * QUIZ_QUESTIONS.length);
+  } while (questionIndex === lastQuizQuestionIndex && QUIZ_QUESTIONS.length > 1);
+  lastQuizQuestionIndex = questionIndex;
+  quizQuestion = QUIZ_QUESTIONS[questionIndex];
+  quizCorrect = false;
+}
+
+function answerQuiz(answerIdx) {
+  if (quizAnswered) return;
+  quizAnswered = true;
+  quizCorrect = (answerIdx === quizQuestion.correct);
+  if (!quizCorrect) {
+    hitPlayer(null);
+  } else {
+    // Richtig beantwortet - kein Leben verloren, aber Combo zurückgesetzt
+    combo = 0; comboTimer = 0;
+    addFloat(W/2, H/2 - 30, '✓ RICHTIG!', '#44ff44', 18);
+    spawnParticles(W/2, H/2, '#44ff4488', 15);
+  }
+  quizActive = false;
+  quizQuestion = null;
+}
+
+function hitPlayer(dangerText){
+  player.lives--;
+  player.invincible=100;
+  screenShake=7;
+  combo=0; comboTimer=0;
+  spawnParticles(player.x,player.y,'#ff2244',20);
+  spawnParticles(player.x,player.y,'#ff8899',10);
+  addFloat(player.x,player.y-30,'−1 ♥','#ff4466',16);
+  if(dangerText) addFloat(W/2,H/2-40,dangerText,'#ff6644',11);
+  if(player.lives<=0){
+    state='dead';
+    hiScores[selectedChar]=Math.max(hiScores[selectedChar],score);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// DRAW
+// ══════════════════════════════════════════════════════════════
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  if(state==='menu'){ drawMenu(); return; }
+  if(state==='charselect'){ drawCharSelect(); return; }
+
+  drawBackground();
+  drawGround();
+  powerupItems.forEach(drawPowerupItem);
+  orbs.forEach(drawOrb);
+  obstacles.forEach(drawObstacle);
+  drawPlayer();
+  drawParticles();
+  drawFloatTexts();
+  drawHUD();
+  if(quizActive) drawQuizOverlay();
+  drawFactPopup();
+
+  if(state==='dead') drawGameOver();
+}
+
+// ══════════════════════════════════════════════════════════════
+// MENU
+// ══════════════════════════════════════════════════════════════
+function drawMenu(){
+  ctx.fillStyle='#06000e'; ctx.fillRect(0,0,W,H);
+
+  // Animated vessel glow
+  LANES.forEach((x,i)=>{
+    const a=0.04+0.03*Math.sin(frameCount*0.04+i*1.4);
+    ctx.strokeStyle=`rgba(255,20,60,${a})`; ctx.lineWidth=70;
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+  });
+  ctx.strokeStyle='#ff002255'; ctx.lineWidth=60;
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W,0); ctx.lineTo(W,H); ctx.stroke();
+
+  // Floating cells deco
+  const cellData=[
+    {x:60,col:'#ff2244',r:18,speed:0.03,off:0},
+    {x:380,col:'#88ccff',r:14,speed:0.05,off:2},
+    {x:220,col:'#ff7700',r:10,speed:0.04,off:4},
+  ];
+  cellData.forEach(c=>{
+    const y=150+80*Math.sin(frameCount*c.speed+c.off);
+    ctx.save(); ctx.globalAlpha=0.3;
+    ctx.fillStyle=c.col; ctx.beginPath(); ctx.arc(c.x,y,c.r,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+
+  // Title
+  ctx.save();
+  glow('#ff0033',35);
+  ctx.fillStyle='#ff2244'; ctx.font='bold 38px Orbitron'; ctx.textAlign='center';
+  ctx.fillText('BLOOD', W/2, 190);
+  ctx.fillStyle='#ff4466'; ctx.font='bold 34px Orbitron';
+  ctx.fillText('RUNNER', W/2, 235);
+  noGlow(); ctx.restore();
+
+  ctx.fillStyle='#ffffff22'; ctx.font='9px Exo 2'; ctx.textAlign='center';
+  ctx.fillText('INTERAKTIVES ANATOMIE-SPIEL', W/2, 260);
+
+  // Quick facts strip
+  ctx.fillStyle='rgba(255,20,60,0.07)';
+  ctx.fillRect(0, 280, W, 34);
+  ctx.fillStyle='#ff224466'; ctx.font='8px Exo 2'; ctx.textAlign='center';
+  const facts=['🔴 Das Herz schlägt ~100.000× täglich','⚪ WBCs bekämpfen täglich Millionen Keime',
+    '🟠 Blutplättchen verschließen Wunden in Sekunden','🟢 Viren sind 100× kleiner als Bakterien'];
+  ctx.fillText(facts[Math.floor(frameCount/120)%facts.length], W/2, 302);
+
+  // Start button
+  const bAlpha=0.7+0.3*Math.sin(frameCount*0.07);
+  ctx.globalAlpha=bAlpha;
+  ctx.fillStyle='rgba(255,20,60,0.14)'; ctx.strokeStyle='#ff2244'; ctx.lineWidth=2;
+  roundRect(W/2-115,330,230,52,11); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#ff4466'; ctx.font='bold 16px Orbitron'; ctx.textAlign='center';
+  ctx.fillText('▶  CHARAKTER WÄHLEN', W/2, 362);
+  ctx.globalAlpha=1;
+
+  ctx.fillStyle='#ffffff11'; ctx.font='9px Exo 2';
+  ctx.fillText('KLICK  ·  SPACE  ·  ENTER', W/2, 402);
+
+  // Controls
+  const ctrlY=430;
+  ctx.fillStyle='rgba(0,0,0,0.4)';
+  roundRect(W/2-130,ctrlY,260,120,10); ctx.fill();
+  ctx.strokeStyle='#ffffff11'; ctx.lineWidth=1;
+  roundRect(W/2-130,ctrlY,260,120,10); ctx.stroke();
+  ctx.fillStyle='#ffffff55'; ctx.font='bold 9px Orbitron'; ctx.textAlign='center';
+  ctx.fillText('STEUERUNG', W/2, ctrlY+18);
+  [['←/→ oder A/D','Spur wechseln'],['↑ oder W oder SPACE','Springen'],
+    ['2× Springen','Doppelsprung'],['Touch-Swipe','Mobil spielen']
+  ].forEach(([k,v],i)=>{
+    ctx.fillStyle='#ffffff44'; ctx.font='8px Orbitron'; ctx.textAlign='left';
+    ctx.fillText(k, W/2-120, ctrlY+38+i*20);
+    ctx.fillStyle='#ffffff88'; ctx.font='8px Exo 2'; ctx.textAlign='right';
+    ctx.fillText(v, W/2+120, ctrlY+38+i*20);
+  });
+
+  // Hi scores
+  const hasAny=Object.values(hiScores).some(s=>s>0);
+  if(hasAny){
+    ctx.fillStyle='#ffaa0044'; ctx.font='8px Orbitron'; ctx.textAlign='center';
+    ctx.fillText('BESTZEITEN: '+Object.entries(hiScores).filter(([,v])=>v>0).map(([k,v])=>`${CHARS[k].emoji}${v}`).join(' · '), W/2, 570);
+  }
+
+  ctx.textAlign='left';
+}
+
+// ══════════════════════════════════════════════════════════════
+// CHARACTER SELECT
+// ══════════════════════════════════════════════════════════════
+const charKeys=Object.keys(CHARS);
+function drawCharSelect(){
+  ctx.fillStyle='#06000e'; ctx.fillRect(0,0,W,H);
+
+  ctx.save(); glow('#ff0022',20);
+  ctx.fillStyle='#ff2244'; ctx.font='bold 26px Orbitron'; ctx.textAlign='center';
+  ctx.fillText('WÄHLE DEINEN CHARAKTER', W/2, 50);
+  noGlow(); ctx.restore();
+
+  ctx.fillStyle='#ffffff22'; ctx.font='10px Exo 2'; ctx.textAlign='center';
+  ctx.fillText('Jeder Charakter trifft andere Hindernisse!', W/2, 72);
+
+  charKeys.forEach((key,i)=>{
+    const cd=CHARS[key];
+    const col=i%2, row=Math.floor(i/2);
+    const cx=col===0?W/4:W*3/4;
+    const cy=100+row*240+100;
+    const cardW=180;
+    const isHover=charHoverIdx===i;
+    const isSelected=selectedChar===key;
+
+    // Card bg
+    ctx.save();
+    ctx.globalAlpha = isHover||isSelected ? 1 : 0.8;
+    if(isSelected||isHover){ glow(cd.color,20); }
+    ctx.fillStyle=isSelected?cd.color+'33':isHover?cd.color+'22':'rgba(30,0,15,0.7)';
+    ctx.strokeStyle=isSelected?cd.color:isHover?cd.color+'88':'#ffffff11';
+    ctx.lineWidth=isSelected?2.5:1.5;
+    roundRect(cx-cardW/2,cy-90,cardW,200,14); ctx.fill(); ctx.stroke();
+    noGlow();
+
+    // Character visual (large emoji + drawn cell)
+    ctx.font='44px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(cd.emoji, cx, cy-42);
+
+    // Name
+    ctx.fillStyle=isSelected?cd.color:'#ffffff'; ctx.font='bold 11px Orbitron'; ctx.textBaseline='alphabetic';
+    ctx.fillText(cd.name, cx, cy+18);
+
+    // Description
+    ctx.fillStyle='#ffffff66'; ctx.font='9px Exo 2';
+    // word wrap
+    const words=cd.desc.split(' '), maxW=cardW-20;
+    let line='', ly=cy+34;
+    words.forEach(w=>{
+      const test=line+w+' ';
+      if(ctx.measureText(test).width>maxW&&line){ ctx.fillText(line,cx,ly); line=w+' '; ly+=14; }
+      else line=test;
+    });
+    ctx.fillText(line,cx,ly);
+
+    // Power badge
+    const pu=POWERUP_INFO[cd.powerup];
+    ctx.fillStyle=pu.color+'33'; ctx.strokeStyle=pu.color+'66'; ctx.lineWidth=1.5;
+    roundRect(cx-55,cy+82,110,28,6); ctx.fill(); ctx.stroke();
+    ctx.fillStyle=pu.color; ctx.font='9px Orbitron'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(`${pu.icon} ${pu.label}-Bonus`, cx, cy+96);
+
+    // Hi-score
+    if(hiScores[key]>0){
+      ctx.fillStyle='#ffaa0077'; ctx.font='7px Orbitron';
+      ctx.fillText(`BEST: ${hiScores[key]}`, cx, cy+108);
+    }
+
+    ctx.globalAlpha=1; ctx.restore();
+  });
+
+  // Start button (only if char selected)
+  if(selectedChar){
+    const bAlpha=0.8+0.2*Math.sin(frameCount*0.08);
+    ctx.globalAlpha=bAlpha;
+    ctx.fillStyle='rgba(255,20,60,0.15)'; ctx.strokeStyle='#ff2244'; ctx.lineWidth=2;
+    roundRect(W/2-110,590,220,50,11); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#ff4466'; ctx.font='bold 15px Orbitron'; ctx.textAlign='center';
+    ctx.fillText(`▶`, W/2, 621);
+    ctx.globalAlpha=1;
+  } else {
+    ctx.fillStyle='#ffffff22'; ctx.font='10px Exo 2'; ctx.textAlign='center';
+    ctx.fillText('← Charakter antippen/klicken →', W/2, 620);
+  }
+  ctx.textAlign='left';
+}
+
+// ══════════════════════════════════════════════════════════════
+// GAME OVER
+// ══════════════════════════════════════════════════════════════
+function drawGameOver(){
+  ctx.fillStyle='rgba(0,0,0,0.82)'; ctx.fillRect(0,0,W,H);
+
+  ctx.save(); glow('#ff0022',40);
+  ctx.fillStyle='#ff1133'; ctx.font='bold 44px Orbitron'; ctx.textAlign='center';
+  ctx.fillText('GAME OVER', W/2, 200);
+  noGlow(); ctx.restore();
+
+  // Char emoji
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.font='36px serif';
+  ctx.fillText(charDef.emoji, W/2, 260);
+  ctx.textBaseline='alphabetic';
+
+  // Score
+  ctx.fillStyle='#ffffff'; ctx.font='bold 28px Orbitron'; ctx.textAlign='center';
+  ctx.fillText(score, W/2, 310);
+  ctx.fillStyle='#ffffff44'; ctx.font='9px Orbitron';
+  ctx.fillText('SCORE', W/2, 328);
+
+  const isNew=score>=hiScores[selectedChar]&&score>0;
+  if(isNew){
+    ctx.save(); glow('#ffcc00',20);
+    ctx.fillStyle='#ffcc00'; ctx.font='bold 13px Orbitron';
+    ctx.fillText('✦ NEUER REKORD ✦', W/2, 354);
+    noGlow(); ctx.restore();
+  }
+
+  ctx.fillStyle='#ffffff33'; ctx.font='9px Exo 2';
+  ctx.fillText(`${Math.floor(distance/100)}m  ·  Level ${diffLevel+1}  ·  ${totalOrbs} gesammelt`, W/2, 378);
+
+  // Restart
+  ctx.fillStyle='rgba(255,20,60,0.15)'; ctx.strokeStyle='#ff2244'; ctx.lineWidth=2;
+  roundRect(W/2-110,408,220,50,11); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#ff4466'; ctx.font='bold 15px Orbitron'; ctx.textAlign='center';
+  ctx.fillText('▶  NOCHMAL', W/2, 438);
+
+  // Change char
+  ctx.fillStyle='rgba(80,80,80,0.15)'; ctx.strokeStyle='#555'; ctx.lineWidth=1;
+  roundRect(W/2-110,468,220,44,10); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#aaaaaa'; ctx.font='11px Orbitron';
+  ctx.fillText('CHARAKTER WECHSELN', W/2, 495);
+
+  // Menu
+  ctx.fillStyle='rgba(40,40,40,0.15)'; ctx.strokeStyle='#333'; ctx.lineWidth=1;
+  roundRect(W/2-80,522,160,36,8); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#666'; ctx.font='10px Orbitron';
+  ctx.fillText('MENÜ', W/2, 545);
+
+  ctx.fillStyle='#33333388'; ctx.font='8px Exo 2';
+  ctx.fillText('R · Enter = Neustart  ·  Esc = Menü', W/2, 575);
+  ctx.textAlign='left';
+}
+
+// ══════════════════════════════════════════════════════════════
+// MAIN LOOP
+// ══════════════════════════════════════════════════════════════
+function loop(){ update(); draw(); requestAnimationFrame(loop); }
+
+// ══════════════════════════════════════════════════════════════
+// INPUT
+// ══════════════════════════════════════════════════════════════
+const keys={};
+
+document.addEventListener('keydown', e=>{
+  keys[e.key]=true;
+
+  if(e.key===' '||e.key==='Enter'){
+    if(state==='menu'){ state='charselect'; return; }
+    if(state==='charselect'&&selectedChar){ initGame(); state='play'; return; }
+    if(state==='dead'){ initGame(); state='play'; return; }
+  }
+  if(e.key==='Escape'){
+    if(state==='play'||state==='dead'||state==='charselect') state='menu';
+    return;
+  }
+  if((e.key==='r'||e.key==='R')&&state==='dead'){ initGame(); state='play'; return; }
+
+  // Jump
+  if((e.key==='ArrowUp'||e.key==='w'||e.key==='W'||e.key===' ')&&state==='play'){
+    if(quizActive && !quizAnswered) e.preventDefault();
+    else { doJump(); e.preventDefault(); }
+  }
+  // Quiz answers
+  if(quizActive && !quizAnswered){
+    if(e.key==='a'||e.key==='A') answerQuiz(0);
+    if(e.key==='b'||e.key==='B') answerQuiz(1);
+    if(e.key==='c'||e.key==='C') answerQuiz(2);
+  }
+});
+
+document.addEventListener('keyup', e=>{ keys[e.key]=false; });
+
+function doJump(){
+  if(player.jumps<2){
+    player.vy=player.jumps===0?JUMP1:JUMP2;
+    player.onGround=false; player.jumps++;
+    player.squish=1.35;
+    spawnParticles(player.x,player.y+player.h/2,charDef?charDef.color+'44':'#ff224444',8,45);
+  }
+}
+
+// Mouse click
+canvas.addEventListener('click', e=>{
+  const rect=canvas.getBoundingClientRect();
+  const sx=W/rect.width, sy=H/rect.height;
+  const mx=(e.clientX-rect.left)*sx, my=(e.clientY-rect.top)*sy;
+  if(quizActive && !quizAnswered){
+    // Check quiz button clicks
+    const btnY=[220, 300, 380];
+    btnY.forEach((y, idx)=>{
+      if(mx>40 && mx<W-40 && my>y && my<y+55){
+        answerQuiz(idx);
+      }
+    });
+  } else {
+    handleClick(mx,my);
+  }
+});
+
+function handleClick(mx,my){
+  if(state==='menu'){
+    if(my>330&&my<382){ state='charselect'; }
+    return;
+  }
+  if(state==='charselect'){
+    // Check char cards
+    charKeys.forEach((key,i)=>{
+      const col=i%2, row=Math.floor(i/2);
+      const cx=col===0?W/4:W*3/4, cy=100+row*240+100;
+      if(mx>cx-80&&mx<cx+80&&my>cy-90&&my<cy+110){
+        selectedChar=key;
+      }
+    });
+    // Start button
+    if(selectedChar&&my>590&&my<640&&mx>W/2-110&&mx<W/2+110){
+      initGame(); state='play';
+    }
+    return;
+  }
+  if(state==='dead'){
+    if(my>408&&my<458) { initGame(); state='play'; return; }
+    if(my>468&&my<512) { state='charselect'; return; }
+    if(my>522&&my<558) { state='menu'; return; }
+  }
+}
+
+// Mouse hover for char select
+canvas.addEventListener('mousemove', e=>{
+  const rect=canvas.getBoundingClientRect();
+  const mx=(e.clientX-rect.left)*(W/rect.width), my=(e.clientY-rect.top)*(H/rect.height);
+  charHoverIdx=-1;
+  if(state==='charselect'){
+    charKeys.forEach((key,i)=>{
+      const col=i%2, row=Math.floor(i/2);
+      const cx=col===0?W/4:W*3/4, cy=100+row*240+100;
+      if(mx>cx-80&&mx<cx+80&&my>cy-90&&my<cy+110) charHoverIdx=i;
+    });
+    // cursor on button
+    if(selectedChar&&my>590) charHoverIdx=-1;
+  }
+});
+
+// Touch
+let tStartX=null, tStartY=null;
+canvas.addEventListener('touchstart', e=>{
+  e.preventDefault();
+  const rect=canvas.getBoundingClientRect();
+  const t=e.touches[0];
+  tStartX=(t.clientX-rect.left)*(W/rect.width);
+  tStartY=(t.clientY-rect.top)*(H/rect.height);
+
+  if(state==='menu'){ state='charselect'; return; }
+  if(state==='charselect'){
+    handleClick(tStartX,tStartY);
+  }
+  if(state==='dead'){ handleClick(tStartX,tStartY); }
+},{passive:false});
+
+canvas.addEventListener('touchend', e=>{
+  e.preventDefault();
+  const rect=canvas.getBoundingClientRect();
+  const t=e.changedTouches[0];
+  const ex=(t.clientX-rect.left)*(W/rect.width), ey=(t.clientY-rect.top)*(H/rect.height);
+  
+  if(quizActive && !quizAnswered){
+    // Check quiz button taps
+    const btnY=[220, 300, 380];
+    btnY.forEach((y, idx)=>{
+      if(ex>40 && ex<W-40 && ey>y && ey<y+55){
+        answerQuiz(idx);
+      }
+    });
+  } else if(state==='play'){
+    const dx=ex-tStartX, dy=ey-tStartY;
+    if(Math.abs(dy)>Math.abs(dx)&&dy<-25){ doJump(); }
+    else if(Math.abs(dx)>25){
+      if(dx<0&&player.lane>0){ player.lane--; player.targetX=LANES[player.lane]; player.lean=-1; }
+      else if(dx>0&&player.lane<2){ player.lane++; player.targetX=LANES[player.lane]; player.lean=1; }
+    } else { doJump(); }
+  }
+},{passive:false});
+
+// ══════════════════════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════════════════════
+selectedChar=null;
+loop();
+</script>
 </body>
 </html>
-
