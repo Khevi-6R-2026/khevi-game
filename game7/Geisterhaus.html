@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geisterhaus der Vielfachen</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="game-screen">
+        <!-- Game Header -->
+        <div class="game-header">
+            <h1>👻 Geisterhaus der Vielfachen</h1>
+            <div class="game-info">
+                <div class="info-box">
+                    <span>🎯 Punkte:</span>
+                    <span id="score" style="margin-left: 10px; color: #fbbf24;">0</span>
+                </div>
+                <div class="info-box">
+                    <span>📍 Level:</span>
+                    <span id="level" style="margin-left: 10px; color: #fbbf24;">1</span>
+                </div>
+            </div>
+            <div class="number-display" id="numberDisplay">?</div>
+            <p style="font-size: 1.2rem; margin-top: 10px;">Springe auf die Vielfachen von <strong id="multipleOf">?</strong></p>
+            <p style="font-size: 0.9rem; margin-top: 8px; opacity: 0.9;">💡 Tipp: Leertaste oder W zum Springen!</p>
+        </div>
+
+        <!-- Game Arena -->
+        <div class="game-arena" id="gameArena">
+            <div class="player" id="player">👻</div>
+        </div>
+
+        <!-- UI Buttons -->
+        <div class="ui-buttons">
+            <button class="btn btn-primary" id="pauseBtn" onclick="togglePause()">⏸ Pause</button>
+            <a href="index.html" class="btn btn-secondary">🏠 Startseite</a>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="gameOverModal" class="game-over-screen" style="display: none;">
+        <div class="game-over-content">
+            <h2>💀 Game Over!</h2>
+            <p>Du bist in die falsche Platform gesprungen!</p>
+            <div class="final-score">
+                Punkte: <span id="finalScore">0</span>
+            </div>
+            <p style="color: #6b7280; margin-bottom: 30px;">
+                Maximal erreichtes Level: <strong id="maxLevel">1</strong>
+            </p>
+            <div class="modal-buttons">
+                <button class="btn btn-restart" onclick="restartGame()">🔄 Nochmal spielen</button>
+                <a href="index.html" class="btn btn-home">🏠 Zur Startseite</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
